@@ -1,0 +1,86 @@
+import axios from 'axios'
+
+const TOKEN_KEY = 'pathshalaa_token'
+const USER_KEY = 'pathshalaa_user'
+
+const client = axios.create({
+  baseURL: '/api',
+})
+
+client.interceptors.request.use((config) => {
+  const token = getToken()
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+export function getToken() {
+  return localStorage.getItem(TOKEN_KEY)
+}
+
+export function setToken(token) {
+  localStorage.setItem(TOKEN_KEY, token)
+}
+
+export function clearToken() {
+  localStorage.removeItem(TOKEN_KEY)
+}
+
+export function getUser() {
+  const raw = localStorage.getItem(USER_KEY)
+  return raw ? JSON.parse(raw) : null
+}
+
+function setUser(user) {
+  localStorage.setItem(USER_KEY, JSON.stringify(user))
+}
+
+function clearUser() {
+  localStorage.removeItem(USER_KEY)
+}
+
+export async function loginWithGoogle(idToken) {
+  const { data } = await client.post('/auth/google', { id_token: idToken })
+  setToken(data.token)
+  setUser({ name: data.name, email: data.email })
+  return data
+}
+
+export function logout() {
+  clearToken()
+  clearUser()
+}
+
+export async function getGraphData(latex) {
+  const { data } = await client.post('/graph', { latex })
+  return data
+}
+
+export async function recognizeEquation(blob) {
+  const formData = new FormData()
+  formData.append('image', blob, 'equation.png')
+  const { data } = await client.post('/recognize', formData)
+  return data.latex
+}
+
+export async function getCalibrationStatus() {
+  const { data } = await client.get('/calibration/status')
+  return data.sample_count
+}
+
+export async function submitCalibrationSample(blob, label) {
+  const formData = new FormData()
+  formData.append('image', blob, 'sample.png')
+  formData.append('label', label)
+  await client.post('/calibration/samples', formData)
+}
+
+export async function submitCorrection(blob, correctedLabel) {
+  const formData = new FormData()
+  formData.append('image', blob, 'equation.png')
+  formData.append('corrected_label', correctedLabel)
+  await client.post('/calibration/corrections', formData)
+}
+
+export default client
