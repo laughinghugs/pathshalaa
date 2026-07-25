@@ -29,12 +29,19 @@ class LLMProvider(ABC):
         self,
         image_bytes: bytes,
         mime_type: str,
+        prompt: str,
         examples: list[HandwritingExample] | None = None,
     ) -> str:
-        """Returns clean LaTeX for the handwritten equation in the given image.
+        """Returns the model's raw text response for the given image.
+
+        `prompt` is built by app/plugins/prompts.py from whichever
+        subject-agent(s) are active — it instructs the model to return a
+        JSON array of AICommand objects (see app/commands.py), which the
+        caller is responsible for parsing/validating. This method itself
+        stays subject-agnostic.
 
         If `examples` is given, they're injected ahead of the new image as
-        few-shot (image -> correct LaTeX) pairs so the model can calibrate to
+        few-shot (image -> correct label) pairs so the model can calibrate to
         that teacher's handwriting style.
         """
 

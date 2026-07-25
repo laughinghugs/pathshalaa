@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import Login from './components/Login'
 import CalibrationFlow from './components/CalibrationFlow'
 import EquationCanvas from './components/EquationCanvas'
-import LatexDisplay from './components/LatexDisplay'
+import CommandDrafts from './components/CommandDrafts'
 import GraphView from './components/GraphView'
 import { getToken, getUser, logout, getCalibrationStatus, submitCorrection } from './api/client'
 
@@ -14,7 +14,7 @@ export default function App() {
   const [loggedIn, setLoggedIn] = useState(!!getToken())
   const [user, setUser] = useState(getUser())
   const [showCalibration, setShowCalibration] = useState(false)
-  const [latex, setLatex] = useState('')
+  const [commands, setCommands] = useState([])
   const [confirmedLatex, setConfirmedLatex] = useState('')
   const [lastImageBlob, setLastImageBlob] = useState(null)
 
@@ -46,12 +46,12 @@ export default function App() {
     logout()
     setLoggedIn(false)
     setUser(null)
-    setLatex('')
+    setCommands([])
     setLastImageBlob(null)
   }
 
-  function handleRecognized(newLatex, blob) {
-    setLatex(newLatex)
+  function handleRecognized(newCommands, blob) {
+    setCommands(newCommands)
     setLastImageBlob(blob)
     setConfirmedLatex('')
   }
@@ -92,7 +92,7 @@ export default function App() {
       </header>
       <main>
         <EquationCanvas onRecognized={handleRecognized} />
-        <LatexDisplay latex={latex} onConfirm={handleConfirm} />
+        <CommandDrafts commands={commands} onLatexAccept={handleConfirm} />
         <GraphView latex={confirmedLatex} />
       </main>
       {showCalibration && (

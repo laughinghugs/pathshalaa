@@ -1,7 +1,8 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import { cropToBlob, getFocusRegion } from '../utils/focusRegion'
 
 const DrawingCanvas = forwardRef(function DrawingCanvas(
-  { width = 500, height = 220, onChange },
+  { width = 500, height = 220, onChange, onStrokeStart, onStrokeEnd },
   ref,
 ) {
   const canvasRef = useRef(null)
@@ -56,6 +57,7 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
     canvasRef.current.setPointerCapture(e.pointerId)
     drawingRef.current = true
     currentStrokeRef.current = [getPoint(e)]
+    onStrokeStart?.()
   }
 
   function handlePointerMove(e) {
@@ -71,6 +73,7 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
     if (currentStrokeRef.current && currentStrokeRef.current.length > 1) {
       strokesRef.current.push(currentStrokeRef.current)
       notifyChange()
+      onStrokeEnd?.()
     }
     currentStrokeRef.current = null
     redraw()
@@ -92,6 +95,17 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
     },
     toBlob() {
       return new Promise((resolve) => canvasRef.current.toBlob(resolve, 'image/png'))
+    },
+    getStrokes() {
+      return strokesRef.current
+    },
+    // Crops to a tight bounding box around the most recently drawn stroke
+    // (plus margin) instead of sending the whole canvas — see
+    // src/utils/focusRegion.js. Falls back to the full canvas if empty.
+    toFocusRegionBlob(margin = 20) {
+      const canvas = canvasRef.current
+      const region = getFocusRegion(strokesRef.current, canvas.width, canvas.height, margin)
+      return cropToBlob(canvas, region)
     },
   }))
 

@@ -93,18 +93,79 @@ main {
   cursor: not-allowed;
 }
 
-.latex-display {
+.canvas-toolbar .auto-toggle {
   background: white;
-  border-radius: 8px;
-  border: 1px solid #d0d3dc;
-  padding: 1.25rem 1.75rem;
+  color: #3f51b5;
+  border: 1px solid #3f51b5;
+}
+
+.canvas-toolbar .auto-toggle.active {
+  background: #3f51b5;
+  color: white;
+}
+
+.command-drafts {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
   width: min(760px, 100%);
 }
 
-.latex-display h2 {
+/* Every AI command starts as an unconfirmed draft (dashed border, subtle
+   tint) until the teacher hits Accept/Confirm — see CommandDrafts.jsx. */
+.command-draft {
+  background: #fafbff;
+  border-radius: 8px;
+  border: 2px dashed #a9adc4;
+  padding: 1.25rem 1.75rem;
+}
+
+.command-draft.accepted {
+  background: white;
+  border: 1px solid #d0d3dc;
+}
+
+.command-draft h3 {
   margin-top: 0;
   font-size: 1.05rem;
   color: #555;
+}
+
+.command-draft-raw {
+  background: #f4f5f8;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  overflow-x: auto;
+}
+
+.command-draft-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.command-draft-actions button {
+  padding: 0.5rem 1.25rem;
+  border-radius: 6px;
+  border: none;
+  background: #3f51b5;
+  color: white;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.command-draft-discard {
+  background: transparent !important;
+  color: #c0392b !important;
+  border: 1px solid #c0392b !important;
+}
+
+.command-draft-status {
+  color: #4caf7d;
+  font-weight: 600;
+  font-size: 0.9rem;
 }
 
 .latex-rendered {
@@ -192,26 +253,68 @@ main {
 }
 
 .login-screen {
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: #f4f5f8;
+  padding: 1.5rem;
+}
+
+.login-lang-switch {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  gap: 0.25rem;
+  background: white;
+  border: 1px solid #d0d3dc;
+  border-radius: 999px;
+  padding: 0.25rem;
+}
+
+.login-lang-switch button {
+  border: none;
+  background: transparent;
+  color: #666;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.login-lang-switch button.active {
   background: #1a1a2e;
+  color: white;
 }
 
 .login-card {
   background: white;
-  padding: 2.5rem 3rem;
-  border-radius: 12px;
+  border: 1px solid #e2e4ea;
+  box-shadow: 0 10px 30px rgba(26, 26, 46, 0.08);
+  padding: 2.75rem 2.5rem;
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
-  min-width: 320px;
+  gap: 0.4rem;
+  width: 100%;
+  max-width: 380px;
 }
 
-.google-button {
-  margin-top: 0.5rem;
+.login-icon-badge {
+  width: 56px;
+  height: 56px;
+  border: 1.5px solid #3f5e85;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: #3f5e85;
+  margin-bottom: 0.75rem;
 }
 
 .login-card h1 {
@@ -219,10 +322,33 @@ main {
   text-align: center;
 }
 
-.login-card p {
-  margin: 0 0 0.5rem;
+.login-welcome {
+  margin: 0;
   text-align: center;
-  color: #666;
+  color: #555;
+  font-weight: 500;
+}
+
+.login-tagline {
+  margin: 0.25rem 0 0.5rem;
+  text-align: center;
+  color: #8a8d99;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.google-button {
+  margin-top: 0.5rem;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.login-footer {
+  margin: 0.75rem 0 0;
+  text-align: center;
+  color: #9a9da8;
+  font-size: 0.8rem;
 }
 
 

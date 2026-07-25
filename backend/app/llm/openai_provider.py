@@ -6,19 +6,6 @@ from openai import AsyncOpenAI
 
 from .base import HandwritingExample, LLMProvider
 
-BASE_RECOGNIZE_PROMPT = (
-    "This image contains a handwritten math equation on a whiteboard-style canvas. "
-    "Transcribe it as clean, valid LaTeX. Return ONLY the LaTeX for the equation itself — "
-    "no explanation, no markdown code fences, and no surrounding $ or $$ delimiters."
-)
-
-FEW_SHOT_RECOGNIZE_PROMPT = (
-    "The preceding examples show this teacher's handwriting style, each with its correct "
-    "LaTeX reading. Using them as a style reference, read the following handwritten "
-    "equation and return clean LaTeX. Return ONLY the LaTeX for the equation itself — "
-    "no explanation, no markdown code fences, and no surrounding $ or $$ delimiters."
-)
-
 EXAMPLE_QUESTION = "What is the correct LaTeX for this handwritten symbol or equation?"
 
 
@@ -36,10 +23,10 @@ class OpenAIProvider(LLMProvider):
         self,
         image_bytes: bytes,
         mime_type: str,
+        prompt: str,
         examples: list[HandwritingExample] | None = None,
     ) -> str:
         messages = _build_few_shot_messages(examples)
-        prompt = FEW_SHOT_RECOGNIZE_PROMPT if examples else BASE_RECOGNIZE_PROMPT
         messages.append(
             {
                 "role": "user",

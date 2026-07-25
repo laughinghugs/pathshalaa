@@ -3,8 +3,15 @@ import axios from 'axios'
 const TOKEN_KEY = 'pathshalaa_token'
 const USER_KEY = 'pathshalaa_user'
 
+// Defaults to a same-origin relative path, which only works when something
+// (Vite's dev proxy locally, or a reverse proxy in production) forwards
+// /api/* to the backend from the same origin the frontend is served from.
+// If the backend lives on a different origin, set VITE_API_BASE_URL to its
+// full URL (e.g. "https://api.example.com/api").
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+
 const client = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
 })
 
 client.interceptors.request.use((config) => {
@@ -61,7 +68,7 @@ export async function recognizeEquation(blob) {
   const formData = new FormData()
   formData.append('image', blob, 'equation.png')
   const { data } = await client.post('/recognize', formData)
-  return data.latex
+  return data.commands
 }
 
 export async function getCalibrationStatus() {

@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -12,7 +14,10 @@ class LoginResponse(BaseModel):
 
 
 class RecognizeResponse(BaseModel):
-    latex: str
+    # Already-validated AICommand dicts (see app/commands.py) — plain dicts
+    # here rather than the AICommand union itself, since they're validated
+    # and dumped upstream in recognize_router.py.
+    commands: list[dict[str, Any]]
 
 
 class GraphRequest(BaseModel):

@@ -2,14 +2,21 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.auth import get_current_user
 from app.calibration import get_calibration_samples
+from app.commands import CommandValidationError, parse_ai_commands
 from app.google_auth import GoogleUser
 from app.llm import get_llm_provider
 from app.llm.base import HandwritingExample
+from app.plugins import build_recognition_prompt, get_active_plugins
 from app.schemas import RecognizeResponse
 
 router = APIRouter(prefix="/api", tags=["recognize"])
 
 ALLOWED_MIME_TYPES = {"image/png", "image/jpeg", "image/webp"}
+
+# Hardcoded to the math subject for this MVP. Structured so a future
+# subject-selection param (e.g. from the request) just changes this list —
+# nothing else in this function depends on which subjects are active.
+ACTIVE_SUBJECT_IDS = ["math"]
 
 
 @router.post("/recognize", response_model=RecognizeResponse)
@@ -30,6 +37,18 @@ async def recognize(
         for sample in samples
     ]
 
+    active_plugins = get_active_plugins(ACTIVE_SUBJECT_IDS)
+    prompt = build_recognition_prompt(active_plugins, has_examples=bool(examples))
+
     provider = get_llm_provider()
-    latex = await provider.recognize_equation(image_bytes, image.content_type, examples=examples or None)
-    return RecognizeResponse(latex=latex)
+    raw_response = await provider.recognize_equation(
+        image_bytes, image.content_type, prompt, examples=examples or None
+    )
+
+    allowed_types = {command_type for plugin in active_plugins for command_type in plugin.command_types}
+    try:
+        commands = parse_ai_commands(raw_response, allowed_types)
+    except CommandValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    return RecognizeResponse(commands=[command.model_dump() for command in commands])
