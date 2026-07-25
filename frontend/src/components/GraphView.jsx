@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getGraphData } from '../api/client'
+import Corners from './Corners'
 
 // plotly.js-dist-min is ~1.6MB gzipped (it bundles 2D + 3D trace support), so
 // it's loaded lazily on first use rather than in the main bundle.
@@ -11,7 +12,7 @@ function loadPlotly() {
   return plotlyPromise
 }
 
-export default function GraphView({ latex }) {
+export default function GraphView({ latex, t, onView3d }) {
   const plotRef = useRef(null)
   const plotlyRef = useRef(null)
   const [loading, setLoading] = useState(false)
@@ -36,7 +37,7 @@ export default function GraphView({ latex }) {
       render(Plotly, data)
       setHasGraph(true)
     } catch (err) {
-      setError(err?.response?.data?.detail || 'Could not graph this equation.')
+      setError(err?.response?.data?.detail || t.graphError)
     } finally {
       setLoading(false)
     }
@@ -46,12 +47,12 @@ export default function GraphView({ latex }) {
     if (!plotRef.current) return
 
     if (data.type === '2d') {
-      const traces = data.traces.map((t) => ({
-        x: t.x,
-        y: t.y,
+      const traces = data.traces.map((tr) => ({
+        x: tr.x,
+        y: tr.y,
         type: 'scatter',
         mode: 'lines',
-        name: t.label,
+        name: tr.label,
         connectgaps: false,
       }))
       Plotly.newPlot(
@@ -94,13 +95,21 @@ export default function GraphView({ latex }) {
   if (!latex) return null
 
   return (
-    <div className="graph-panel">
-      <h2>Graph</h2>
-      <button onClick={handleGraph} disabled={loading}>
-        {loading ? 'Graphing…' : 'Graph'}
+    <div className="command-draft graph-card blueprint">
+      <Corners />
+      <div className="card-kicker">{t.graphLabel}</div>
+      <button type="button" className="btn btn-secondary blueprint btn-block" onClick={handleGraph} disabled={loading}>
+        <Corners />
+        {loading ? t.graphing : t.graph}
       </button>
       {error && <p className="error">{error}</p>}
       <div ref={plotRef} className={hasGraph ? 'graph-plot' : 'graph-plot graph-plot-empty'} />
+      {hasGraph && onView3d && (
+        <button type="button" className="btn btn-secondary blueprint btn-block" onClick={onView3d}>
+          <Corners />
+          {t.view3d}
+        </button>
+      )}
     </div>
   )
 }

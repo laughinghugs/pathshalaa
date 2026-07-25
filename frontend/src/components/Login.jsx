@@ -1,36 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { loginWithGoogle } from '../api/client'
+import { COPY, getLang, setLang as persistLang } from '../i18n'
+import Corners from './Corners'
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
-
-const LANG_KEY = 'pathshalaa_login_lang'
-
-const COPY = {
-  en: {
-    welcome: 'Welcome, teacher',
-    tagline: 'Turn handwritten equations into instant lessons for your class.',
-    footer: 'Free for teachers and classrooms.',
-    notConfigured: 'Google sign-in is not configured (missing VITE_GOOGLE_CLIENT_ID).',
-    signinFailed: 'Sign-in failed. Please try again.',
-  },
-  hi: {
-    welcome: 'स्वागत है, शिक्षक',
-    tagline: 'हाथ से लिखे समीकरणों को अपनी कक्षा के लिए तुरंत पाठ में बदलें।',
-    footer: 'शिक्षकों और कक्षाओं के लिए निःशुल्क।',
-    notConfigured: 'Google साइन-इन कॉन्फ़िगर नहीं है (VITE_GOOGLE_CLIENT_ID गायब है)।',
-    signinFailed: 'साइन-इन विफल रहा। कृपया पुनः प्रयास करें।',
-  },
-}
 
 export default function Login({ onLoggedIn }) {
   const buttonRef = useRef(null)
   const [error, setError] = useState('')
-  const [lang, setLang] = useState(() => localStorage.getItem(LANG_KEY) || 'en')
+  const [lang, setLang] = useState(getLang)
   const t = COPY[lang]
 
   function handleLangChange(next) {
     setLang(next)
-    localStorage.setItem(LANG_KEY, next)
+    persistLang(next)
   }
 
   useEffect(() => {
@@ -61,7 +44,7 @@ export default function Login({ onLoggedIn }) {
       window.google.accounts.id.renderButton(buttonRef.current, {
         theme: 'filled_blue',
         size: 'large',
-        shape: 'pill',
+        shape: 'rectangular',
         text: 'signin_with',
         logo_alignment: 'left',
         width: 300,
@@ -90,30 +73,26 @@ export default function Login({ onLoggedIn }) {
 
   return (
     <div className="login-screen">
-      <div className="login-lang-switch">
-        <button
-          type="button"
-          className={lang === 'en' ? 'active' : ''}
-          onClick={() => handleLangChange('en')}
-        >
+      <div className="lang-switch">
+        <button type="button" className={lang === 'en' ? 'active' : ''} onClick={() => handleLangChange('en')}>
           EN
         </button>
-        <button
-          type="button"
-          className={lang === 'hi' ? 'active' : ''}
-          onClick={() => handleLangChange('hi')}
-        >
+        <button type="button" className={lang === 'hi' ? 'active' : ''} onClick={() => handleLangChange('hi')}>
           हिं
         </button>
+        <button type="button" className="lang-more" title="More languages coming soon">
+          +
+        </button>
       </div>
-      <div className="login-card">
+      <div className="login-card blueprint elev-lg">
+        <Corners />
         <div className="login-icon-badge">π</div>
-        <h1>Pathshalaa</h1>
-        <p className="login-welcome">{t.welcome}</p>
-        <p className="login-tagline">{t.tagline}</p>
+        <h1>{t.brand}</h1>
+        <p className="login-welcome">{t.loginWelcome}</p>
+        <p className="login-tagline">{t.loginTagline}</p>
         <div ref={buttonRef} className="google-button" />
         {error && <p className="error">{error}</p>}
-        <p className="login-footer">{t.footer}</p>
+        <p className="login-footer">{t.loginFooter}</p>
       </div>
     </div>
   )

@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
+import Corners from './Corners'
 
 // The generic draft/confirm layer for ALL AI output (item 2 of the
 // recognition refactor): every command coming back from /api/recognize
-// starts as an "unconfirmed draft" (dashed border) until the teacher hits
-// Accept or Discard. Only `latex` has a fully built renderer today — the
-// other AICommand types (see backend/app/commands.py) get a minimal
-// fallback display so the pattern already works end-to-end for whatever a
-// future subject-agent plugin adds, without new feature UI being built here.
+// starts as an "unconfirmed draft" (blueprint frame) until the teacher hits
+// Accept or Discard. `latex` and `solution_steps` have dedicated renderers —
+// the rest (graph, shape3d, translation) get a minimal fallback display so
+// the pattern already works end-to-end for whatever a future subject-agent
+// plugin adds, without new feature UI being built here.
 
 let idCounter = 0
 function nextId() {
@@ -24,7 +25,7 @@ const TYPE_LABELS = {
   translation: 'Translation',
 }
 
-function LatexDraftCard({ command, accepted, onAccept }) {
+function LatexDraftCard({ command, accepted, onAccept, t }) {
   const previewRef = useRef(null)
   const [editedContent, setEditedContent] = useState(command.content)
 
@@ -42,10 +43,10 @@ function LatexDraftCard({ command, accepted, onAccept }) {
 
   return (
     <>
-      <h3>{TYPE_LABELS.latex}</h3>
+      <div className="card-kicker">{t.recognizedLabel}</div>
       <div ref={previewRef} className="latex-rendered" />
       <label className="latex-edit-label" htmlFor={`latex-edit-${command._id}`}>
-        Not quite right? Edit the LaTeX below, then confirm.
+        {t.notQuiteRight}
       </label>
       <textarea
         id={`latex-edit-${command._id}`}
@@ -57,12 +58,30 @@ function LatexDraftCard({ command, accepted, onAccept }) {
       />
       {!accepted && (
         <button
-          className="latex-confirm"
+          type="button"
+          className="btn btn-primary blueprint btn-block"
           onClick={() => onAccept(editedContent, editedContent !== command.content)}
         >
-          Confirm
+          <Corners />
+          {t.confirm}
         </button>
       )}
+    </>
+  )
+}
+
+function SolutionStepsCard({ command, t }) {
+  return (
+    <>
+      <div className="card-kicker">{t.solutionTitle}</div>
+      <div className="solution-steps">
+        {command.steps.map((step, i) => (
+          <div className="solution-step" key={i}>
+            <span className="solution-step-n">{i + 1}</span>
+            <span className="solution-step-text">{step}</span>
+          </div>
+        ))}
+      </div>
     </>
   )
 }
@@ -71,13 +90,13 @@ function FallbackDraftCard({ command }) {
   const { type: _type, _id, _accepted, ...fields } = command
   return (
     <>
-      <h3>{TYPE_LABELS[command.type] ?? command.type}</h3>
+      <div className="card-kicker">{TYPE_LABELS[command.type] ?? command.type}</div>
       <pre className="command-draft-raw">{JSON.stringify(fields, null, 2)}</pre>
     </>
   )
 }
 
-export default function CommandDrafts({ commands, onLatexAccept }) {
+export default function CommandDrafts({ commands, onLatexAccept, t }) {
   const [drafts, setDrafts] = useState([])
 
   // A fresh batch of recognized commands replaces whatever was drafted
@@ -99,40 +118,45 @@ export default function CommandDrafts({ commands, onLatexAccept }) {
     onLatexAccept?.(finalContent, wasEdited)
   }
 
-  if (drafts.length === 0) return null
+  if (drafts.length === 0) {
+    return <div className="ai-panel-empty">{t.recognizeHint}</div>
+  }
 
   return (
-    <div className="command-drafts">
+    <>
       {drafts.map((draft) => (
-        <div
-          key={draft._id}
-          className={draft._accepted ? 'command-draft accepted' : 'command-draft'}
-        >
+        <div key={draft._id} className="command-draft blueprint">
+          <Corners />
           {draft.type === 'latex' ? (
             <LatexDraftCard
               command={draft}
               accepted={draft._accepted}
               onAccept={(content, wasEdited) => handleLatexAccept(draft._id, content, wasEdited)}
+              t={t}
             />
+          ) : draft.type === 'solution_steps' ? (
+            <SolutionStepsCard command={draft} t={t} />
           ) : (
             <FallbackDraftCard command={draft} />
           )}
-          <div className="command-draft-actions">
-            {draft._accepted ? (
-              <span className="command-draft-status">Confirmed ✓</span>
-            ) : (
-              <>
-                {draft.type !== 'latex' && (
-                  <button onClick={() => handleAcceptGeneric(draft._id)}>Accept</button>
-                )}
-                <button className="command-draft-discard" onClick={() => handleDiscard(draft._id)}>
-                  Discard
-                </button>
-              </>
-            )}
-          </div>
+          {draft.type !== 'latex' && (
+            <div className="command-draft-actions">
+              {draft._accepted ? (
+                <span className="command-draft-status">{t.confirmedStatus}</span>
+              ) : (
+                <>
+                  <button type="button" className="btn btn-secondary" onClick={() => handleAcceptGeneric(draft._id)}>
+                    {t.confirm}
+                  </button>
+                  <button type="button" className="btn btn-danger" onClick={() => handleDiscard(draft._id)}>
+                    Discard
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       ))}
-    </div>
+    </>
   )
 }
