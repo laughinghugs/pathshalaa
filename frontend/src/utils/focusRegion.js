@@ -1,26 +1,27 @@
 // Instead of sending the whole canvas to the recognize endpoint, compute a
-// tight crop around the most recently drawn stroke — cheaper (fewer image
-// tokens) and more accurate (the model isn't distracted by unrelated marks
-// elsewhere on the canvas).
+// tight crop around everything drawn so far — cheaper (fewer image tokens)
+// and more accurate (the model isn't distracted by empty margin elsewhere
+// on the canvas).
 
 // Pure — no DOM dependency, so it's easy to reason about/test in isolation.
-// Returns the bounding box of the LAST stroke in `strokes`, expanded by
+// Returns the bounding box of ALL strokes in `strokes`, expanded by
 // `margin` and clamped to the canvas bounds.
 export function getFocusRegion(strokes, canvasWidth, canvasHeight, margin = 20) {
   if (!strokes || strokes.length === 0) {
     return { x: 0, y: 0, width: canvasWidth, height: canvasHeight }
   }
 
-  const lastStroke = strokes[strokes.length - 1]
   let minX = Infinity
   let minY = Infinity
   let maxX = -Infinity
   let maxY = -Infinity
-  for (const point of lastStroke) {
-    if (point.x < minX) minX = point.x
-    if (point.y < minY) minY = point.y
-    if (point.x > maxX) maxX = point.x
-    if (point.y > maxY) maxY = point.y
+  for (const stroke of strokes) {
+    for (const point of stroke) {
+      if (point.x < minX) minX = point.x
+      if (point.y < minY) minY = point.y
+      if (point.x > maxX) maxX = point.x
+      if (point.y > maxY) maxY = point.y
+    }
   }
 
   const x = Math.max(0, Math.floor(minX - margin))
