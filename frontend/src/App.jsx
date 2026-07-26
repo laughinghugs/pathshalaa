@@ -3,6 +3,7 @@ import Login from './components/Login'
 import CalibrationFlow from './components/CalibrationFlow'
 import EquationCanvas from './components/EquationCanvas'
 import CommandDrafts from './components/CommandDrafts'
+import SolveView from './components/SolveView'
 import GraphView from './components/GraphView'
 import ThreeDView from './components/ThreeDView'
 import { getToken, getUser, logout, getCalibrationStatus, submitCorrection } from './api/client'
@@ -184,6 +185,7 @@ export default function App() {
                 </button>
               </div>
               <CommandDrafts commands={commands} onLatexAccept={handleConfirm} onView3d={handleView3d} t={t} />
+              <SolveView latex={confirmedLatex} t={t} />
               <GraphView latex={confirmedLatex} t={t} onView3d={handleView3d} />
             </div>
           </div>

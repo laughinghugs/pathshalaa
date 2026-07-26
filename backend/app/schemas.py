@@ -24,6 +24,17 @@ class GraphRequest(BaseModel):
     latex: str
 
 
+class SolveRequest(BaseModel):
+    latex: str
+
+
+class SolveResponse(BaseModel):
+    steps: list[str]
+    is_differential: bool
+    classification: str
+    final_answer: str
+
+
 class CalibrationStatusResponse(BaseModel):
     sample_count: int
 

@@ -64,6 +64,11 @@ export async function getGraphData(latex) {
   return data
 }
 
+export async function solveEquation(latex) {
+  const { data } = await client.post('/solve', { latex })
+  return data
+}
+
 export async function recognizeEquation(blob) {
   const formData = new FormData()
   formData.append('image', blob, 'equation.png')

@@ -60,6 +60,14 @@ class AnthropicProvider(LLMProvider):
         )
         return _extract_text(response)
 
+    async def solve_equation(self, prompt: str) -> str:
+        response = await self.client.messages.create(
+            model=self.model,
+            max_tokens=8192,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return _extract_text(response)
+
 
 def _build_few_shot_messages(examples: list[HandwritingExample] | None) -> list[dict]:
     messages: list[dict] = []

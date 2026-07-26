@@ -48,3 +48,14 @@ class LLMProvider(ABC):
     @abstractmethod
     async def translate_text(self, text: str, target_lang: str) -> str:
         """Translates text into target_lang, preserving any embedded LaTeX."""
+
+    @abstractmethod
+    async def solve_equation(self, prompt: str) -> str:
+        """Returns the model's raw text response for a step-by-step solve prompt.
+
+        `prompt` is built by app/solving.py, which already computed and
+        embedded the verified correct final answer (via SymPy) — the model's
+        job is only to narrate a pedagogical path to it, as a JSON
+        `solution_steps` command (see app/commands.py), which the caller is
+        responsible for parsing/validating.
+        """

@@ -57,6 +57,18 @@ class OpenAIProvider(LLMProvider):
         )
         return (response.choices[0].message.content or "").strip()
 
+    async def solve_equation(self, prompt: str) -> str:
+        # Reasoning models spend part of max_completion_tokens on hidden
+        # reasoning before writing the JSON output, so this needs more
+        # headroom than the other calls or multi-step solutions can get
+        # truncated mid-response.
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            max_completion_tokens=8192,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return (response.choices[0].message.content or "").strip()
+
 
 def _build_few_shot_messages(examples: list[HandwritingExample] | None) -> list[dict]:
     messages: list[dict] = []

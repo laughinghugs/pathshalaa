@@ -4,14 +4,14 @@ An MVP web app for teachers to hand-write math equations on screen and have AI
 recognize, solve, graph, and visualize them in 3D, with explanations in a
 regional language.
 
-**Current status:** canvas → recognize → draft/confirm → graph (2D or 3D) is
-wired end-to-end, behind Google Sign-In, with per-teacher handwriting
-calibration (few-shot conditioning) improving recognition accuracy.
-Recognition is driven by a structured JSON command protocol and a
-subject-agent plugin registry (see "Recognition architecture" below) so that
-step-by-step Solve, the manual 3D shape panel (Three.js), and the language
-toggle — still follow-up steps — can be added as new command types/plugins
-without changing the core recognition flow.
+**Current status:** canvas → recognize → draft/confirm → graph (2D or 3D) or
+solve (step-by-step, reveal-as-you-go) is wired end-to-end, behind Google
+Sign-In, with per-teacher handwriting calibration (few-shot conditioning)
+improving recognition accuracy. Recognition is driven by a structured JSON
+command protocol and a subject-agent plugin registry (see "Recognition
+architecture" below) so that the manual 3D shape panel (Three.js) and the
+language toggle — still follow-up steps — can be added as new command
+types/plugins without changing the core recognition flow.
 
 ## Project structure
 
@@ -27,6 +27,7 @@ Pathsalaa/
 │       ├── commands.py      the AICommand JSON schema + parse_ai_commands() validator
 │       ├── calibration.py   per-teacher handwriting sample storage (SQLite)
 │       ├── graphing.py      LaTeX -> SymPy -> numeric data for 2D/3D plots
+│       ├── solving.py       LaTeX -> SymPy ground truth -> LLM step narration
 │       ├── llm/             provider-agnostic LLM abstraction
 │       │   ├── base.py           LLMProvider interface + HandwritingExample
 │       │   ├── anthropic_provider.py
@@ -42,7 +43,8 @@ Pathsalaa/
 │           ├── auth_router.py         POST /api/auth/google
 │           ├── recognize_router.py    POST /api/recognize
 │           ├── calibration_router.py  calibration samples + corrections
-│           └── graph_router.py        POST /api/graph
+│           ├── graph_router.py        POST /api/graph
+│           └── solve_router.py        POST /api/solve
 └── frontend/           React (Vite) app
     └── src/
         ├── App.jsx
@@ -55,6 +57,7 @@ Pathsalaa/
             ├── DrawingCanvas.jsx       shared canvas drawing primitive
             ├── EquationCanvas.jsx      canvas + undo/clear/manual+auto recognize
             ├── CommandDrafts.jsx       generic draft/confirm layer for AI commands
+            ├── SolveView.jsx           step-by-step solve, reveal-next-step UI
             └── GraphView.jsx           2D/3D plot via Plotly.js (lazy-loaded)
 ```
 
@@ -256,6 +259,41 @@ render — no separate "Solve" step needed for this:
    both 2D and 3D trace types) is dynamically `import()`-ed on first click of
    **Graph**, not included in the initial page bundle.
 
+## Solving equations (step-by-step)
+
+`POST /api/solve` (`solving.py` + `solve_router.py`) answers "solve this"
+for algebraic equations in one unknown (linear, quadratic, cubic, or other
+polynomial/non-polynomial forms) and first-order differential equations
+written in Leibniz notation (`\frac{dy}{dx} = ...`). Unlike Graph, it
+doesn't lean on the LLM for the actual math — that would risk a
+confidently-wrong final answer:
+
+1. **Ground truth first:** `compute_ground_truth()` parses the LaTeX with
+   `sympy.parsing.latex.parse_latex` (same as graphing), then:
+   - *Algebraic:* rejects anything with more than one free variable
+     (`SolveError`, shown directly to the teacher), classifies the equation
+     by polynomial degree, and solves it with `sympy.solve`.
+   - *Differential:* detects a `Derivative` in the parsed tree, promotes the
+     dependent symbol to an applied function (`y` → `y(x)`) so SymPy's ODE
+     machinery recognizes it, classifies it with `sympy.classify_ode`, and
+     solves it with `sympy.dsolve`. Higher-order or prime-notation (`y'`)
+     derivatives aren't supported — SymPy's LaTeX parser doesn't recognize
+     that notation as a derivative in the first place.
+2. **LLM narrates, doesn't compute:** `build_solve_prompt()` hands the model
+   the equation, its classification, and the already-verified final answer,
+   and asks only for a short pedagogical path *to* that answer — a JSON
+   `solution_steps` command (see "The AICommand schema" above), reusing
+   `parse_ai_commands` for validation. Long LaTeX-heavy step lists
+   occasionally trip the model into slightly malformed JSON (an unbalanced
+   bracket); `solve_router.py` retries up to 3 times before returning a 502,
+   since the same malformed shape essentially never repeats on retry.
+3. **Reveal-as-you-go:** `SolveView.jsx` fetches all steps in one call, then
+   shows them one at a time behind a **Reveal next step** button; once every
+   step is shown, a pinned **Final answer** card renders the SymPy-verified
+   `final_answer` (not whatever the last LLM step happened to say), via
+   KaTeX with `katex/contrib/auto-render` for the `$...$`-delimited math
+   inside each step's prose.
+
 ## Prerequisites
 
 - Python 3.9+
@@ -414,6 +452,11 @@ cross-origin complication beyond the CORS origin check above.
    affecting anything already accepted.
 7. Click **Graph** — a one- or two-variable equation renders as a 2D line or
    3D surface (rotate/zoom with your mouse) below.
+8. Click **Solve** — for a single-unknown algebraic equation or a first-order
+   `dy/dx = ...` differential equation, this computes the verified answer
+   with SymPy and reveals the first step below the canvas. Click **Reveal
+   next step** to walk through the rest one at a time; once every step is
+   shown, a **Final answer** card renders the SymPy-verified result.
 
 ## Roadmap (not yet implemented)
 
@@ -421,10 +464,6 @@ The `AICommand` schema and plugin registry (see "Recognition architecture"
 above) already define these as first-class command types — what's missing is
 their actual renderer/feature logic:
 
-- **Solve** — step-by-step algebraic solution. The `solution_steps` command
-  type and its draft-card fallback display already exist; no subject-agent
-  produces it yet, and there's no dedicated step-by-step layout (currently
-  only *Graph* uses SymPy, and only to rearrange the equation for plotting).
 - **3D shape panel** — manual cone/sphere/cylinder picker with Three.js. The
   `shape3d` command type is fully validated on both backend and frontend
   (bounded numeric `params` only — see the "never execute AI-provided code"
