@@ -567,18 +567,14 @@ button {
 .threeD-heading .subtitle { font-size: 14px; color: var(--color-neutral-400); }
 .threeD-stage {
   flex: 1;
+  min-height: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  perspective: 1100px;
-  cursor: grab;
-  touch-action: none;
+  padding-top: 70px;
 }
-.threeD-rig {
-  position: relative;
-  width: 340px;
-  height: 280px;
-  transform-style: preserve-3d;
+.threeD-plot {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
 }
 .threeD-hint {
   text-align: center;

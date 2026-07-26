@@ -21,6 +21,7 @@ export default function App() {
   const [lastImageBlob, setLastImageBlob] = useState(null)
   const [lang, setLangState] = useState(getLang)
   const [screen, setScreen] = useState('board')
+  const [threeDPayload, setThreeDPayload] = useState(null)
   const [panelDock, setPanelDock] = useState('side')
   const [showUserMenu, setShowUserMenu] = useState(false)
   const t = COPY[lang]
@@ -98,6 +99,11 @@ export default function App() {
     setShowCalibration(false)
   }
 
+  function handleView3d(payload) {
+    setThreeDPayload(payload)
+    setScreen('3d')
+  }
+
   function togglePanelDock() {
     setPanelDock((d) => (d === 'side' ? 'bottom' : 'side'))
   }
@@ -109,7 +115,7 @@ export default function App() {
   return (
     <div className="app">
       {screen === '3d' ? (
-        <ThreeDView t={t} onBack={() => setScreen('board')} />
+        <ThreeDView t={t} payload={threeDPayload} onBack={() => setScreen('board')} />
       ) : (
         <>
           <nav className="nav">
@@ -177,8 +183,8 @@ export default function App() {
                   </svg>
                 </button>
               </div>
-              <CommandDrafts commands={commands} onLatexAccept={handleConfirm} t={t} />
-              <GraphView latex={confirmedLatex} t={t} onView3d={() => setScreen('3d')} />
+              <CommandDrafts commands={commands} onLatexAccept={handleConfirm} onView3d={handleView3d} t={t} />
+              <GraphView latex={confirmedLatex} t={t} onView3d={handleView3d} />
             </div>
           </div>
         </>

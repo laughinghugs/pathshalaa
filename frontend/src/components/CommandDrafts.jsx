@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import Corners from './Corners'
+import { loadPlotly } from '../utils/plotly'
+import { buildShapeSurface, SHAPE_LABELS } from '../utils/shape3d'
 
 // The generic draft/confirm layer for ALL AI output (item 2 of the
 // recognition refactor): every command coming back from /api/recognize
@@ -86,6 +88,48 @@ function SolutionStepsCard({ command, t }) {
   )
 }
 
+function Shape3DCard({ command, t, onView3d }) {
+  const plotRef = useRef(null)
+
+  // Params are already fully known the moment the command arrives (unlike
+  // Graph, which needs a network round-trip), so the preview renders
+  // immediately instead of waiting for a button press.
+  useEffect(() => {
+    let cancelled = false
+    const surface = buildShapeSurface(command.shape, command.params)
+    if (!surface) return
+    loadPlotly().then((Plotly) => {
+      if (cancelled || !plotRef.current) return
+      Plotly.newPlot(
+        plotRef.current,
+        [{ x: surface.x, y: surface.y, z: surface.z, type: 'surface', showscale: false, colorscale: 'Blues' }],
+        { margin: { t: 10, r: 10, b: 10, l: 10 }, scene: { aspectmode: 'data' } },
+        { responsive: true, displayModeBar: false },
+      )
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [command.shape, command.params])
+
+  return (
+    <>
+      <div className="card-kicker">{SHAPE_LABELS[command.shape] || command.type}</div>
+      <div ref={plotRef} className="graph-plot" />
+      {onView3d && (
+        <button
+          type="button"
+          className="btn btn-secondary blueprint btn-block"
+          onClick={() => onView3d({ kind: 'shape3d', shape: command.shape, params: command.params })}
+        >
+          <Corners />
+          {t.view3d}
+        </button>
+      )}
+    </>
+  )
+}
+
 function FallbackDraftCard({ command }) {
   const { type: _type, _id, _accepted, ...fields } = command
   return (
@@ -96,7 +140,7 @@ function FallbackDraftCard({ command }) {
   )
 }
 
-export default function CommandDrafts({ commands, onLatexAccept, t }) {
+export default function CommandDrafts({ commands, onLatexAccept, onView3d, t }) {
   const [drafts, setDrafts] = useState([])
 
   // A fresh batch of recognized commands replaces whatever was drafted
@@ -136,6 +180,8 @@ export default function CommandDrafts({ commands, onLatexAccept, t }) {
             />
           ) : draft.type === 'solution_steps' ? (
             <SolutionStepsCard command={draft} t={t} />
+          ) : draft.type === 'shape3d' ? (
+            <Shape3DCard command={draft} t={t} onView3d={onView3d} />
           ) : (
             <FallbackDraftCard command={draft} />
           )}
