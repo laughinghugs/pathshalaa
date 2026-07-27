@@ -11,4 +11,4 @@ sympy==1.14.0
 numpy==2.0.2
 antlr4-python3-runtime==4.11
 apscheduler==3.10.4
-psycopg[binary]==3.2.4
+psycopg[binary]==3.2.13
