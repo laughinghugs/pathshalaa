@@ -2,7 +2,26 @@ import { useEffect, useRef, useState } from 'react'
 import { getGraphData } from '../api/client'
 import { loadPlotly } from '../utils/plotly'
 import { renderGraphData } from '../utils/plotGraph'
+import { formatPiMultiple, formatNumber } from '../utils/formatMath'
 import Corners from './Corners'
+
+function WaveProperties({ data, t }) {
+  if (data?.type !== '2d' || data.period == null) return null
+  const period = formatPiMultiple(data.period) || formatNumber(data.period)
+  const amplitude = data.amplitude != null ? formatNumber(data.amplitude) : null
+  return (
+    <div className="graph-wave-props">
+      <span className="tag tag-outline">
+        {t.periodLabel}: {period}
+      </span>
+      {amplitude != null && (
+        <span className="tag tag-outline">
+          {t.amplitudeLabel}: {amplitude}
+        </span>
+      )}
+    </div>
+  )
+}
 
 export default function GraphView({ latex, t, onView3d }) {
   const plotRef = useRef(null)
@@ -46,6 +65,7 @@ export default function GraphView({ latex, t, onView3d }) {
         {loading ? t.graphing : t.graph}
       </button>
       {error && <p className="error">{error}</p>}
+      <WaveProperties data={graphData} t={t} />
       <div ref={plotRef} className={graphData ? 'graph-plot' : 'graph-plot graph-plot-empty'} />
       {graphData?.type === '3d' && onView3d && (
         <button type="button" className="btn btn-secondary blueprint btn-block" onClick={() => onView3d({ kind: 'graph', latex, data: graphData })}>

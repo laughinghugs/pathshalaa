@@ -1,9 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.billing.trial import start_scheduler, stop_scheduler
 from app.calibration import init_db as init_calibration_db
 from app.config import get_settings
-from app.routers import auth_router, calibration_router, graph_router, recognize_router, solve_router
+from app.rbac.db import init_db as init_rbac_db
+from app.routers import (
+    admin_router,
+    auth_router,
+    calibration_router,
+    graph_router,
+    recognize_router,
+    solve_router,
+)
 
 app = FastAPI(title="Pathshalaa API")
 
@@ -21,11 +30,19 @@ app.include_router(recognize_router.router)
 app.include_router(calibration_router.router)
 app.include_router(graph_router.router)
 app.include_router(solve_router.router)
+app.include_router(admin_router.router)
 
 
 @app.on_event("startup")
 def on_startup() -> None:
     init_calibration_db()
+    init_rbac_db()
+    start_scheduler()
+
+
+@app.on_event("shutdown")
+def on_shutdown() -> None:
+    stop_scheduler()
 
 
 @app.get("/api/health")

@@ -4,11 +4,16 @@ answer.
 
 Mirrors graphing.py's shape: SymPy does the actual math (so the final
 answer is never a model hallucination), the LLM only writes the human-
-readable explanation, told the correct destination up front. Handles two
+readable explanation, told the correct destination up front. Handles three
 cases:
   1. Algebraic equations in a single unknown, e.g. "x^2 + 3x - 4 = 0" or a
      bare expression (treated as "expression = 0").
-  2. First-order ordinary differential equations written with Leibniz
+  2. Trigonometric equations in a single unknown, e.g. "\\sin(x) = 0.5" —
+     these have infinitely many solutions in general (periodic), so unlike
+     plain algebraic solve() they're always answered as "all solutions
+     within a range", defaulting to $[0, 2\\pi)$ when the caller doesn't
+     give one (see solve_router.py's range_min/range_max).
+  3. First-order ordinary differential equations written with Leibniz
      notation, e.g. "\\frac{dy}{dx} = y" or "\\frac{dy}{dx} + 2y = x" — the
      only ODE form SymPy's LaTeX parser reliably recognizes (it doesn't
      parse prime notation like y' or second-derivative fractions).
@@ -21,6 +26,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Optional
 
 import sympy
 from sympy.parsing.latex import parse_latex
@@ -29,10 +35,12 @@ STEP_DELIMITER = "@@@"
 _CODE_FENCE_RE = re.compile(r"^```[^\n]*\n?|\n?```$", re.MULTILINE)
 _STEP_LABEL_RE = re.compile(r"^(?:step\s*\d+\s*[:.)-]?|\d+\s*[.)-])\s*", re.IGNORECASE)
 
+_TRIG_FUNCS = (sympy.sin, sympy.cos, sympy.tan, sympy.cot, sympy.sec, sympy.csc)
+
 
 class SolveError(Exception):
-    """Raised for anything that isn't a single-unknown algebraic equation or
-    a first-order Leibniz-notation differential equation."""
+    """Raised for anything that isn't a single-unknown algebraic/trig equation
+    or a first-order Leibniz-notation differential equation."""
 
 
 @dataclass
@@ -41,9 +49,19 @@ class SolveResult:
     variable: str
     classification: str
     answer_latex: str
+    is_periodic: bool = False
+    # Set only for trig equations — the $x \in [...]$ text shown alongside
+    # the answer and fed to the LLM so it explains the range restriction.
+    domain_note: Optional[str] = None
 
 
-def compute_ground_truth(latex: str) -> SolveResult:
+def compute_ground_truth(
+    latex: str,
+    range_min: Optional[str] = None,
+    range_max: Optional[str] = None,
+    range_min_inclusive: bool = True,
+    range_max_inclusive: bool = True,
+) -> SolveResult:
     try:
         parsed = parse_latex(latex)
     except Exception as exc:  # sympy/antlr raise several different types
@@ -53,10 +71,35 @@ def compute_ground_truth(latex: str) -> SolveResult:
 
     if eq.atoms(sympy.Derivative):
         return _solve_differential(eq)
-    return _solve_algebraic(eq)
+    return _solve_algebraic(eq, range_min, range_max, range_min_inclusive, range_max_inclusive)
 
 
-def _solve_algebraic(eq: sympy.Eq) -> SolveResult:
+def _parse_range_bound(expr: str) -> float:
+    """A range endpoint, as either a plain number (from the manual range
+    inputs) or a LaTeX math expression (from canvas recognition, e.g. a
+    handwritten "\\pi" — see SolveEquationCommand in app/commands.py)."""
+    try:
+        return float(expr)
+    except ValueError:
+        pass
+    try:
+        parsed = parse_latex(expr)
+        # SymPy's LaTeX parser reads "\pi" as a plain Symbol named "pi", not
+        # the numeric constant sympy.pi — swap it in before evaluating, or
+        # float() below raises even though the expression is fully numeric.
+        parsed = parsed.subs(sympy.Symbol("pi"), sympy.pi)
+        return float(parsed)
+    except Exception as exc:
+        raise SolveError(f"Could not parse the range bound \"{expr}\".") from exc
+
+
+def _solve_algebraic(
+    eq: sympy.Eq,
+    range_min: Optional[str] = None,
+    range_max: Optional[str] = None,
+    range_min_inclusive: bool = True,
+    range_max_inclusive: bool = True,
+) -> SolveResult:
     free_vars = sorted(eq.free_symbols, key=str)
     if not free_vars:
         raise SolveError("This equation has no unknown to solve for.")
@@ -68,6 +111,10 @@ def _solve_algebraic(eq: sympy.Eq) -> SolveResult:
         )
 
     var = free_vars[0]
+    difference = eq.lhs - eq.rhs
+    if any(difference.has(f) for f in _TRIG_FUNCS):
+        return _solve_trig(eq, var, range_min, range_max, range_min_inclusive, range_max_inclusive)
+
     try:
         solutions = sympy.solve(eq, var)
     except NotImplementedError as exc:
@@ -84,6 +131,79 @@ def _solve_algebraic(eq: sympy.Eq) -> SolveResult:
         variable=str(var),
         classification=classification,
         answer_latex=answer_latex,
+    )
+
+
+def _format_range_endpoint(value: float) -> str:
+    """Renders a range endpoint as a clean pi-multiple when it is one (a
+    teacher typing a range is almost always thinking in terms of pi), else
+    as a plain number."""
+    try:
+        simplified = sympy.nsimplify(value, [sympy.pi], rational=False)
+        if abs(float(simplified) - value) < 1e-9:
+            return sympy.latex(simplified)
+    except (TypeError, ValueError):
+        pass
+    return f"{value:g}"
+
+
+def _solve_trig(
+    eq: sympy.Eq,
+    var: sympy.Symbol,
+    range_min: Optional[str],
+    range_max: Optional[str],
+    range_min_inclusive: bool = True,
+    range_max_inclusive: bool = True,
+) -> SolveResult:
+    # OCR'd handwriting turns "sin(x) = 1/2" into a decimal literal ("0.5"),
+    # which would otherwise solve to an ugly float instead of the exact
+    # special-angle answer (pi/6) a Class 10-11 answer is expected to show.
+    float_atoms = eq.atoms(sympy.Float)
+    if float_atoms:
+        eq = eq.xreplace({f: sympy.nsimplify(f) for f in float_atoms})
+
+    if range_min is not None and range_max is not None:
+        range_min_f = _parse_range_bound(range_min)
+        range_max_f = _parse_range_bound(range_max)
+        if range_min_f >= range_max_f:
+            raise SolveError("The range's lower bound must be less than its upper bound.")
+
+        domain = sympy.Interval(
+            range_min_f, range_max_f, left_open=not range_min_inclusive, right_open=not range_max_inclusive
+        )
+        lhs_cmp = "<" if not range_min_inclusive else r"\le"
+        rhs_cmp = "<" if not range_max_inclusive else r"\le"
+        domain_note = (
+            f"{_format_range_endpoint(range_min_f)} {lhs_cmp} {sympy.latex(var)} "
+            f"{rhs_cmp} {_format_range_endpoint(range_max_f)}"
+        )
+    else:
+        domain = sympy.Interval(0, 2 * sympy.pi, right_open=True)
+        domain_note = f"0 \\le {sympy.latex(var)} < 2\\pi"
+
+    try:
+        solset = sympy.solveset(eq, var, domain=domain)
+    except NotImplementedError as exc:
+        raise SolveError("Could not solve this trigonometric equation.") from exc
+
+    if solset == sympy.S.EmptySet:
+        raise SolveError(f"This equation has no solution for ${domain_note}$.")
+    if not isinstance(solset, sympy.FiniteSet):
+        raise SolveError(
+            "Could not find a finite set of solutions in this range — try narrowing it."
+        )
+
+    solutions = sorted(solset, key=lambda s: float(s))
+    answer_latex = r" \quad \text{or} \quad ".join(
+        f"{sympy.latex(var)} = {sympy.latex(sol)}" for sol in solutions
+    )
+    return SolveResult(
+        is_differential=False,
+        variable=str(var),
+        classification="trigonometric equation",
+        answer_latex=answer_latex,
+        is_periodic=True,
+        domain_note=domain_note,
     )
 
 
@@ -144,10 +264,18 @@ def _solve_differential(eq: sympy.Eq) -> SolveResult:
 
 def build_solve_prompt(latex: str, result: SolveResult) -> str:
     kind = "first-order ordinary differential equation" if result.is_differential else "equation"
+    domain_line = f" Solutions are restricted to ${result.domain_note}$." if result.domain_note else ""
+    periodic_line = (
+        " This equation is periodic, so first find the reference/principal solution, then explain "
+        "how the function's symmetry gives the other solution(s) within the given range, before "
+        "stating all of them together."
+        if result.is_periodic
+        else ""
+    )
     return (
         f"You are a math teacher writing a step-by-step solution for a student. "
         f"The {kind} is: {latex}\n"
-        f"It is a {result.classification}. "
+        f"It is a {result.classification}.{domain_line}{periodic_line} "
         f"The verified correct final answer is: {result.answer_latex}\n\n"
         "Write the solution as a sequence of short, clear steps that a student can follow "
         "from the original equation to that exact final answer — do not deviate from it, "

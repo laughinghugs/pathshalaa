@@ -19,6 +19,11 @@ _COMMAND_EXAMPLES: dict[str, str] = {
     "latex": '{"type": "latex", "content": "x^2 + 3x - 4 = 0"}',
     "graph": '{"type": "graph", "function": "x^2", "domain": [-10, 10]}',
     "shape3d": '{"type": "shape3d", "shape": "cone", "params": {"radius": 3, "height": 5}}',
+    "solve_equation": (
+        '{"type": "solve_equation", "content": "\\\\sin(x) + \\\\cos(x) = 2", '
+        '"range_min": "0", "range_max": "\\\\pi", '
+        '"range_min_inclusive": true, "range_max_inclusive": false}'
+    ),
     "solution_steps": '{"type": "solution_steps", "steps": ["Step 1: ...", "Step 2: ..."]}',
     "translation": '{"type": "translation", "text": "...", "language": "hi"}',
 }

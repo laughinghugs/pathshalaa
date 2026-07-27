@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
@@ -50,6 +50,23 @@ class Shape3DCommand(BaseModel):
     params: dict[str, float]
 
 
+class SolveEquationCommand(BaseModel):
+    """An explicit "solve this" instruction written on the canvas (the word
+    "solve", "find x", etc.), as opposed to just an equation left for the
+    teacher to act on manually via a `latex` command. `range_min`/
+    `range_max` are LaTeX expressions (e.g. "0", "\\pi") rather than plain
+    floats, since a handwritten range endpoint is often a pi-multiple —
+    app/solving.py parses them with the same LaTeX parser used everywhere
+    else, not a plain float() cast."""
+
+    type: Literal["solve_equation"]
+    content: str
+    range_min: Optional[str] = None
+    range_max: Optional[str] = None
+    range_min_inclusive: bool = True
+    range_max_inclusive: bool = True
+
+
 class SolutionStepsCommand(BaseModel):
     type: Literal["solution_steps"]
     steps: list[str]
@@ -62,7 +79,14 @@ class TranslationCommand(BaseModel):
 
 
 AICommand = Annotated[
-    Union[LatexCommand, GraphCommand, Shape3DCommand, SolutionStepsCommand, TranslationCommand],
+    Union[
+        LatexCommand,
+        GraphCommand,
+        Shape3DCommand,
+        SolveEquationCommand,
+        SolutionStepsCommand,
+        TranslationCommand,
+    ],
     Field(discriminator="type"),
 ]
 

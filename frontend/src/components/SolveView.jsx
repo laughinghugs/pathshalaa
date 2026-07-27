@@ -20,28 +20,54 @@ function MathText({ text }) {
   return <span ref={ref}>{text}</span>
 }
 
-export default function SolveView({ latex, t }) {
+export default function SolveView({ latex, autoSolve, t }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
   const [revealedCount, setRevealedCount] = useState(0)
+  const [showRange, setShowRange] = useState(false)
+  const [rangeMin, setRangeMin] = useState('')
+  const [rangeMax, setRangeMax] = useState('')
 
   // A newly confirmed equation invalidates whatever was solved before.
   useEffect(() => {
     setResult(null)
     setRevealedCount(0)
     setError('')
+    setShowRange(false)
+    setRangeMin('')
+    setRangeMax('')
   }, [latex])
 
-  async function handleStartSolving() {
+  // The teacher already wrote "solve ... for [a, b)" on the canvas and
+  // confirmed it once (see CommandDrafts' SolveEquationDraftCard) — solve
+  // immediately instead of making them press Solve again / re-enter a range
+  // that's already on the page. Keyed on `latex` alone (not `autoSolve`,
+  // whose object identity changes every render) so this fires exactly once
+  // per confirmed equation.
+  useEffect(() => {
+    if (latex && autoSolve) {
+      handleStartSolving(autoSolve.range ?? null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latex])
+
+  async function handleStartSolving(rangeOverride) {
     setError('')
     setLoading(true)
     try {
-      const data = await solveEquation(latex)
+      const range =
+        rangeOverride !== undefined
+          ? rangeOverride
+          : showRange && rangeMin !== '' && rangeMax !== ''
+            ? { min: rangeMin, max: rangeMax, minInclusive: true, maxInclusive: true }
+            : null
+      const data = await solveEquation(latex, range)
       setResult(data)
       setRevealedCount(1)
     } catch (err) {
-      setError(err?.response?.data?.detail || t.solveError)
+      const detail = err?.response?.data?.detail
+      setError(typeof detail === 'string' ? detail : t.solveError)
     } finally {
       setLoading(false)
     }
@@ -61,15 +87,50 @@ export default function SolveView({ latex, t }) {
       <div className="card-kicker">{t.solutionTitle}</div>
 
       {!result && (
-        <button
-          type="button"
-          className="btn btn-secondary blueprint btn-block"
-          onClick={handleStartSolving}
-          disabled={loading}
-        >
-          <Corners />
-          {loading ? t.solving : t.solve}
-        </button>
+        autoSolve ? (
+          loading && <p className="solve-auto-loading">{t.solving}</p>
+        ) : (
+          <>
+            <label className="solve-range-toggle">
+              <input type="checkbox" checked={showRange} onChange={(e) => setShowRange(e.target.checked)} />
+              {t.solveRangeToggle}
+            </label>
+            {showRange && (
+              <>
+                <div className="solve-range-fields">
+                  <label>
+                    {t.solveRangeFrom}
+                    <input
+                      type="number"
+                      step="any"
+                      value={rangeMin}
+                      onChange={(e) => setRangeMin(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    {t.solveRangeTo}
+                    <input
+                      type="number"
+                      step="any"
+                      value={rangeMax}
+                      onChange={(e) => setRangeMax(e.target.value)}
+                    />
+                  </label>
+                </div>
+                <p className="solve-range-hint">{t.solveRangeHint}</p>
+              </>
+            )}
+            <button
+              type="button"
+              className="btn btn-secondary blueprint btn-block"
+              onClick={() => handleStartSolving(undefined)}
+              disabled={loading}
+            >
+              <Corners />
+              {loading ? t.solving : t.solve}
+            </button>
+          </>
+        )
       )}
 
       {error && <p className="error">{error}</p>}
@@ -96,6 +157,11 @@ export default function SolveView({ latex, t }) {
             <div className="solve-final-answer">
               <span className="card-kicker">{t.finalAnswer}</span>
               <MathText text={`$${result.final_answer}$`} />
+              {result.domain_note && (
+                <div className="solve-domain-note">
+                  <MathText text={`$${result.domain_note}$`} />
+                </div>
+              )}
             </div>
           )}
         </>

@@ -25,6 +25,12 @@ X_RANGE = (-10, 10)
 POINTS_2D = 400
 POINTS_3D = 60
 
+# sin/cos are bounded, so "amplitude" is a meaningful, well-defined number
+# for them; tan/cot/sec/csc are unbounded (asymptotes), so amplitude isn't
+# a sensible concept there even though they're still periodic.
+_BOUNDED_TRIG_FUNCS = (sympy.sin, sympy.cos)
+_UNBOUNDED_TRIG_FUNCS = (sympy.tan, sympy.cot, sympy.sec, sympy.csc)
+
 
 class GraphError(Exception):
     """Raised for anything that isn't a valid, plottable (<=2D) equation."""
@@ -131,19 +137,69 @@ def _evaluate_2d(expr: sympy.Expr, vars_: list[sympy.Symbol], xg: np.ndarray, yg
     return [_sanitize_array(row) for row in raw]
 
 
+def _wave_domain_and_period(expr: sympy.Expr, var: sympy.Symbol) -> tuple[tuple[float, float], float | None]:
+    """For a periodic expression, returns a plot domain spanning exactly two
+    periods centered at zero — so a wave with a very short period (e.g.
+    sin(20x)) isn't lost to the default +/-10 window, and one with a very
+    long period isn't shown as a single, uninformative slice. Falls back to
+    the default domain when periodicity can't be determined or is degenerate
+    (e.g. near-zero or absurdly large, which would make for an unreadable
+    plot either way)."""
+    try:
+        period = sympy.periodicity(expr, var)
+    except Exception:
+        period = None
+    if period is None:
+        return X_RANGE, None
+
+    period_f = _sanitize_scalar(period)
+    if period_f is None or period_f <= 1e-6 or period_f > 1e6:
+        return X_RANGE, None
+    return (-period_f, period_f), period_f
+
+
+def _amplitude_and_midline(expr: sympy.Expr, ys: list) -> tuple[float, float] | None:
+    """Numeric (not symbolic) amplitude/midline from already-sampled y
+    values — works for any bounded sin/cos combination without needing to
+    pattern-match "a*sin(bx+c)+d" symbolically. Skipped for unbounded trig
+    (tan etc.), where "amplitude" isn't a meaningful concept."""
+    if expr.has(*_UNBOUNDED_TRIG_FUNCS) or not expr.has(*_BOUNDED_TRIG_FUNCS):
+        return None
+    finite = [v for v in ys if v is not None]
+    if not finite:
+        return None
+    lo, hi = min(finite), max(finite)
+    return (hi - lo) / 2, (hi + lo) / 2
+
+
 def _build_2d(dependent: sympy.Symbol, var: sympy.Symbol, candidates: list[sympy.Expr]) -> dict:
-    xs = np.linspace(*X_RANGE, POINTS_2D)
+    # Period/amplitude are only computed for the single-branch case (e.g. a
+    # plain "y = sin(x)") — an implicit equation with multiple branches
+    # doesn't have one shared period/amplitude to report.
+    x_range, period = _wave_domain_and_period(candidates[0], var) if len(candidates) == 1 else (X_RANGE, None)
+
+    xs = np.linspace(*x_range, POINTS_2D)
     multi = len(candidates) > 1
     traces = []
+    amplitude_midline = None
     for i, expr in enumerate(candidates, start=1):
+        ys = _evaluate_1d(expr, var, xs)
+        if len(candidates) == 1:
+            amplitude_midline = _amplitude_and_midline(expr, ys)
         traces.append(
             {
                 "label": f"Branch {i}" if multi else str(dependent),
                 "x": [float(v) for v in xs],
-                "y": _evaluate_1d(expr, var, xs),
+                "y": ys,
             }
         )
-    return {"type": "2d", "x_label": str(var), "y_label": str(dependent), "traces": traces}
+
+    result = {"type": "2d", "x_label": str(var), "y_label": str(dependent), "traces": traces}
+    if period is not None:
+        result["period"] = period
+    if amplitude_midline is not None:
+        result["amplitude"], result["midline"] = amplitude_midline
+    return result
 
 
 def _build_3d(dependent: sympy.Symbol, vars_: list[sympy.Symbol], candidates: list[sympy.Expr]) -> dict:

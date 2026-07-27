@@ -1,7 +1,11 @@
-from fastapi import APIRouter, HTTPException, status
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.google_auth import InvalidGoogleToken, create_session_token, verify_google_id_token
-from app.schemas import GoogleLoginRequest, LoginResponse
+from app.rbac.dependencies import get_current_app_user
+from app.rbac.models import User
+from app.schemas import GoogleLoginRequest, LoginResponse, MeResponse
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -20,3 +24,25 @@ def google_login(payload: GoogleLoginRequest) -> LoginResponse:
 
     token = create_session_token(user)
     return LoginResponse(token=token, name=user.name, email=user.email)
+
+
+@router.get("/me", response_model=MeResponse)
+def me(user: User = Depends(get_current_app_user)) -> MeResponse:
+    """Role/organisation/trial info for the signed-in user.
+
+    Resolves (and, on first call after sign-in, creates) the app-level User
+    row via get_current_app_user — see app/billing/trial.py for the
+    Demo-org / invite-matching logic behind that.
+    """
+    days_remaining = None
+    if user.trial_expires_at:
+        days_remaining = max((user.trial_expires_at - datetime.now(timezone.utc)).days, 0)
+
+    return MeResponse(
+        id=user.id,
+        email=user.email,
+        role=user.role,
+        organisation_id=user.organisation_id,
+        trial_expires_at=user.trial_expires_at.isoformat() if user.trial_expires_at else None,
+        trial_days_remaining=days_remaining,
+    )

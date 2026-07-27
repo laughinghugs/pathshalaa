@@ -27,6 +27,14 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173"
 
+    # Comma-separated emails granted the "owner" / "developer" role the
+    # first time they sign in (bootstrapping — there's no in-app role
+    # editor yet, see app/billing/trial.py). Existing user rows are never
+    # overridden by these lists, so removing an email here after they've
+    # already signed in has no effect; that requires a direct DB edit.
+    owner_emails: str = ""
+    developer_emails: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

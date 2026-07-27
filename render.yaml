@@ -31,6 +31,14 @@ services:
       # until that service's first deploy, so it can't be auto-filled here.
       - key: CORS_ORIGINS
         sync: false
+      # Comma-separated emails bootstrapped into the "owner" / "developer"
+      # role on their first sign-in (see backend/app/billing/trial.py).
+      # Only takes effect for an email with no existing User row yet — see
+      # that module's docstring for why (stops trial-cycling).
+      - key: OWNER_EMAILS
+        sync: false
+      - key: DEVELOPER_EMAILS
+        sync: false
 
   # Vite static build of the frontend.
   - type: web

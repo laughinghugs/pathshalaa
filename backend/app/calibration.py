@@ -117,6 +117,18 @@ def get_calibration_samples(teacher_id: str, limit: int = 4) -> list[Calibration
     ]
 
 
+def delete_calibration_samples_for_teacher(teacher_id: str) -> int:
+    """Deletes all stored samples (onboarding + corrections) for a teacher.
+
+    Used by the trial-expiry cleanup job (app/billing/trial.py) to wipe a
+    demo user's content once their trial lapses. Returns the number of rows
+    deleted.
+    """
+    with _get_connection() as conn:
+        cursor = conn.execute("DELETE FROM calibration_samples WHERE teacher_id = ?", (teacher_id,))
+        return cursor.rowcount
+
+
 def count_calibration_samples(teacher_id: str) -> int:
     with _get_connection() as conn:
         row = conn.execute(

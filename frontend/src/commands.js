@@ -18,6 +18,10 @@ const VALIDATORS = {
     // an AI command; a future 3D renderer must only ever read these as
     // plain numbers to size a shape.
     Object.values(cmd.params).every((v) => typeof v === 'number'),
+  solve_equation: (cmd) =>
+    typeof cmd.content === 'string' &&
+    (cmd.range_min === undefined || cmd.range_min === null || typeof cmd.range_min === 'string') &&
+    (cmd.range_max === undefined || cmd.range_max === null || typeof cmd.range_max === 'string'),
   solution_steps: (cmd) => Array.isArray(cmd.steps) && cmd.steps.every((s) => typeof s === 'string'),
   translation: (cmd) => typeof cmd.text === 'string' && typeof cmd.language === 'string',
 }

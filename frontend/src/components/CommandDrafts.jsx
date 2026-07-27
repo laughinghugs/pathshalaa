@@ -72,6 +72,102 @@ function LatexDraftCard({ command, accepted, onAccept, t }) {
   )
 }
 
+function SolveEquationDraftCard({ command, accepted, onAccept, t }) {
+  const previewRef = useRef(null)
+  const [editedContent, setEditedContent] = useState(command.content)
+  const [rangeMin, setRangeMin] = useState(command.range_min ?? '')
+  const [rangeMax, setRangeMax] = useState(command.range_max ?? '')
+  const [minInclusive, setMinInclusive] = useState(command.range_min_inclusive ?? true)
+  const [maxInclusive, setMaxInclusive] = useState(command.range_max_inclusive ?? true)
+
+  useEffect(() => {
+    if (!previewRef.current) return
+    try {
+      katex.render(editedContent || '', previewRef.current, {
+        throwOnError: false,
+        displayMode: true,
+      })
+    } catch {
+      previewRef.current.textContent = editedContent
+    }
+  }, [editedContent])
+
+  const hasRange = rangeMin.trim() !== '' && rangeMax.trim() !== ''
+
+  return (
+    <>
+      <div className="card-kicker">{t.solveDraftLabel}</div>
+      <div ref={previewRef} className="latex-rendered" />
+      <label className="latex-edit-label" htmlFor={`solve-edit-${command._id}`}>
+        {t.notQuiteRight}
+      </label>
+      <textarea
+        id={`solve-edit-${command._id}`}
+        className="latex-edit"
+        rows={2}
+        value={editedContent}
+        disabled={accepted}
+        onChange={(e) => setEditedContent(e.target.value)}
+      />
+      <div className="solve-range-fields">
+        <label>
+          {t.solveRangeFrom}
+          <button
+            type="button"
+            className="range-bracket-toggle"
+            disabled={accepted}
+            title={t.solveRangeBracketHint}
+            onClick={() => setMinInclusive((v) => !v)}
+          >
+            {minInclusive ? '[' : '('}
+          </button>
+          <input
+            type="text"
+            value={rangeMin}
+            disabled={accepted}
+            placeholder="0"
+            onChange={(e) => setRangeMin(e.target.value)}
+          />
+        </label>
+        <label>
+          {t.solveRangeTo}
+          <input
+            type="text"
+            value={rangeMax}
+            disabled={accepted}
+            placeholder="2\pi"
+            onChange={(e) => setRangeMax(e.target.value)}
+          />
+          <button
+            type="button"
+            className="range-bracket-toggle"
+            disabled={accepted}
+            title={t.solveRangeBracketHint}
+            onClick={() => setMaxInclusive((v) => !v)}
+          >
+            {maxInclusive ? ']' : ')'}
+          </button>
+        </label>
+      </div>
+      {!accepted && (
+        <button
+          type="button"
+          className="btn btn-primary blueprint btn-block"
+          onClick={() =>
+            onAccept(
+              editedContent,
+              hasRange ? { min: rangeMin.trim(), max: rangeMax.trim(), minInclusive, maxInclusive } : null,
+            )
+          }
+        >
+          <Corners />
+          {t.confirm}
+        </button>
+      )}
+    </>
+  )
+}
+
 function SolutionStepsCard({ command, t }) {
   return (
     <>
@@ -140,7 +236,7 @@ function FallbackDraftCard({ command }) {
   )
 }
 
-export default function CommandDrafts({ commands, onLatexAccept, onView3d, t }) {
+export default function CommandDrafts({ commands, onLatexAccept, onSolveEquationAccept, onView3d, t }) {
   const [drafts, setDrafts] = useState([])
 
   // A fresh batch of recognized commands replaces whatever was drafted
@@ -162,6 +258,11 @@ export default function CommandDrafts({ commands, onLatexAccept, onView3d, t }) 
     onLatexAccept?.(finalContent, wasEdited)
   }
 
+  function handleSolveEquationAccept(id, finalContent, range) {
+    setDrafts((prev) => prev.map((d) => (d._id === id ? { ...d, _accepted: true } : d)))
+    onSolveEquationAccept?.(finalContent, range)
+  }
+
   if (drafts.length === 0) {
     return <div className="ai-panel-empty">{t.recognizeHint}</div>
   }
@@ -178,6 +279,13 @@ export default function CommandDrafts({ commands, onLatexAccept, onView3d, t }) 
               onAccept={(content, wasEdited) => handleLatexAccept(draft._id, content, wasEdited)}
               t={t}
             />
+          ) : draft.type === 'solve_equation' ? (
+            <SolveEquationDraftCard
+              command={draft}
+              accepted={draft._accepted}
+              onAccept={(content, range) => handleSolveEquationAccept(draft._id, content, range)}
+              t={t}
+            />
           ) : draft.type === 'solution_steps' ? (
             <SolutionStepsCard command={draft} t={t} />
           ) : draft.type === 'shape3d' ? (
@@ -185,7 +293,7 @@ export default function CommandDrafts({ commands, onLatexAccept, onView3d, t }) 
           ) : (
             <FallbackDraftCard command={draft} />
           )}
-          {draft.type !== 'latex' && (
+          {draft.type !== 'latex' && draft.type !== 'solve_equation' && (
             <div className="command-draft-actions">
               {draft._accepted ? (
                 <span className="command-draft-status">{t.confirmedStatus}</span>

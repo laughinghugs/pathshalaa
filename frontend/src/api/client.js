@@ -22,6 +22,28 @@ client.interceptors.request.use((config) => {
   return config
 })
 
+// The backend 403s with this structured body (see app/billing/trial.py)
+// when a demo trial has lapsed. Rather than every call site checking for
+// it, listeners registered via onTrialExpired are notified centrally so
+// the app can swap in a dedicated "trial expired" screen.
+const trialExpiredListeners = new Set()
+
+export function onTrialExpired(listener) {
+  trialExpiredListeners.add(listener)
+  return () => trialExpiredListeners.delete(listener)
+}
+
+client.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 403 && error.response?.data?.detail?.error === 'trial_expired') {
+      const message = error.response.data.detail.message
+      trialExpiredListeners.forEach((listener) => listener(message))
+    }
+    return Promise.reject(error)
+  }
+)
+
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY)
 }
@@ -59,13 +81,28 @@ export function logout() {
   clearUser()
 }
 
+export async function getMe() {
+  const { data } = await client.get('/auth/me')
+  return data
+}
+
 export async function getGraphData(latex) {
   const { data } = await client.post('/graph', { latex })
   return data
 }
 
-export async function solveEquation(latex) {
-  const { data } = await client.post('/solve', { latex })
+// `range`, when given, is { min, max, minInclusive?, maxInclusive? } — min/max
+// as plain number strings ("6.283") or LaTeX expressions ("\\pi", "2\\pi");
+// see solving.py's _parse_range_bound, which accepts either.
+export async function solveEquation(latex, range) {
+  const payload = { latex }
+  if (range?.min != null && range?.max != null && range.min !== '' && range.max !== '') {
+    payload.range_min = String(range.min)
+    payload.range_max = String(range.max)
+    if (range.minInclusive != null) payload.range_min_inclusive = range.minInclusive
+    if (range.maxInclusive != null) payload.range_max_inclusive = range.maxInclusive
+  }
+  const { data } = await client.post('/solve', payload)
   return data
 }
 
@@ -93,6 +130,55 @@ export async function submitCorrection(blob, correctedLabel) {
   formData.append('image', blob, 'equation.png')
   formData.append('corrected_label', correctedLabel)
   await client.post('/calibration/corrections', formData)
+}
+
+// Owner-only. The backend restricts these to the "owner" role regardless
+// of what the frontend does — this is UI convenience, not the access
+// control (see require_permission("manage_all_users") in admin_router.py).
+export async function listAllUsers() {
+  const { data } = await client.get('/admin/users')
+  return data
+}
+
+export async function listAllOrganisations() {
+  const { data } = await client.get('/admin/organisations')
+  return data
+}
+
+export async function createOrganisation(payload) {
+  const { data } = await client.post('/admin/organisations', payload)
+  return data
+}
+
+export async function assignUserToOrganisation(userId, targetOrganisationId) {
+  const { data } = await client.post('/admin/upgrade-user', {
+    user_id: userId,
+    target_organisation_id: targetOrganisationId,
+  })
+  return data
+}
+
+export async function changeUserRole(userId, role) {
+  const { data } = await client.post('/admin/change-role', { user_id: userId, role })
+  return data
+}
+
+export async function listAllInvites() {
+  const { data } = await client.get('/admin/invites')
+  return data
+}
+
+export async function createInvite(email, role, organisationId) {
+  const { data } = await client.post('/admin/invites', {
+    email,
+    role,
+    organisation_id: organisationId,
+  })
+  return data
+}
+
+export async function deleteInvite(inviteId) {
+  await client.delete(`/admin/invites/${inviteId}`)
 }
 
 export default client
