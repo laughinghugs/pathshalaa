@@ -10,6 +10,13 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
+      # Postgres connection string. Paste in the Internal Database URL from
+      # your Render Postgres instance's dashboard (Connections tab) — same
+      # region as this service, so it's faster and doesn't count against
+      # egress. Leave unset to fall back to local SQLite (dev only; the
+      # filesystem here is ephemeral, so don't leave this unset in prod).
+      - key: DATABASE_URL
+        sync: false
       - key: LLM_PROVIDER
         value: openai
       - key: ANTHROPIC_API_KEY

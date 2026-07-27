@@ -1,34 +1,34 @@
-"""SQLite storage for organisations, users, invites, and usage/audit logs.
+"""Storage for organisations, users, invites, and usage/audit logs.
 
-Same lightweight approach as app/calibration.py — a single SQLite file with
-plain SQL, no ORM. This is the multi-tenancy source of truth: which
-organisation a user belongs to, their role, and their trial state.
+Same lightweight approach as app/calibration.py — plain SQL, no ORM. Backed
+by SQLite locally and Postgres in production (see app/db.py). This is the
+multi-tenancy source of truth: which organisation a user belongs to, their
+role, and their trial state.
 """
 
-import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+
+from app.db import IS_POSTGRES, connect
 
 DB_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "rbac.db"
 
 DEMO_ORG_NAME = "Demo"
 DEMO_ORG_TRIAL_DAYS = 15
 
-
-def get_connection() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+_PK = "id SERIAL PRIMARY KEY" if IS_POSTGRES else "id INTEGER PRIMARY KEY AUTOINCREMENT"
 
 
-def init_db() -> None:
+def get_connection():
+    return connect(DB_PATH)
+
+
+def create_schema() -> None:
     with get_connection() as conn:
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS organisations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                {_PK},
                 name TEXT NOT NULL,
                 subscription_tier TEXT NOT NULL DEFAULT 'trial',
                 seats_allowed INTEGER,
@@ -39,9 +39,9 @@ def init_db() -> None:
             """
         )
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                {_PK},
                 email TEXT NOT NULL UNIQUE,
                 google_sub TEXT UNIQUE,
                 role TEXT NOT NULL DEFAULT 'user',
@@ -53,9 +53,9 @@ def init_db() -> None:
             """
         )
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS invites (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                {_PK},
                 email TEXT NOT NULL,
                 organisation_id INTEGER NOT NULL REFERENCES organisations(id),
                 role TEXT NOT NULL DEFAULT 'user',
@@ -65,9 +65,9 @@ def init_db() -> None:
             """
         )
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS deletion_audit_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                {_PK},
                 user_id INTEGER NOT NULL,
                 email TEXT NOT NULL,
                 deleted_at TEXT NOT NULL
@@ -75,9 +75,9 @@ def init_db() -> None:
             """
         )
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS usage_events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                {_PK},
                 user_id INTEGER NOT NULL,
                 event_type TEXT NOT NULL,
                 created_at TEXT NOT NULL
@@ -85,6 +85,9 @@ def init_db() -> None:
             """
         )
 
+
+def seed_demo_org_if_missing() -> None:
+    with get_connection() as conn:
         existing_demo = conn.execute(
             "SELECT id FROM organisations WHERE is_demo = 1 LIMIT 1"
         ).fetchone()
@@ -96,6 +99,11 @@ def init_db() -> None:
                 """,
                 (DEMO_ORG_NAME, DEMO_ORG_TRIAL_DAYS, _now_iso()),
             )
+
+
+def init_db() -> None:
+    create_schema()
+    seed_demo_org_if_missing()
 
 
 def _now_iso() -> str:

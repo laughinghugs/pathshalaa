@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
+from app.db import insert_returning_id
 from app.rbac.db import get_connection
 
 OWNER = "owner"
@@ -122,14 +123,14 @@ def create_organisation(
     trial_days: Optional[int] = None,
 ) -> Organisation:
     with get_connection() as conn:
-        cursor = conn.execute(
+        org_id = insert_returning_id(
+            conn,
             """
             INSERT INTO organisations (name, subscription_tier, seats_allowed, is_demo, trial_days, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
             (name, subscription_tier, seats_allowed, int(is_demo), trial_days, _now_iso()),
         )
-        org_id = cursor.lastrowid
     return get_organisation(org_id)
 
 
@@ -192,7 +193,8 @@ def create_user(
     trial_expires_at: Optional[datetime],
 ) -> User:
     with get_connection() as conn:
-        cursor = conn.execute(
+        user_id = insert_returning_id(
+            conn,
             """
             INSERT INTO users (email, google_sub, role, organisation_id, trial_expires_at, data_deleted, created_at)
             VALUES (?, ?, ?, ?, ?, 0, ?)
@@ -206,7 +208,6 @@ def create_user(
                 _now_iso(),
             ),
         )
-        user_id = cursor.lastrowid
     return get_user_by_id(user_id)
 
 
@@ -313,11 +314,11 @@ def count_pending_invites(organisation_id: int) -> int:
 
 def create_invite(email: str, organisation_id: int, role: str = USER) -> Invite:
     with get_connection() as conn:
-        cursor = conn.execute(
+        invite_id = insert_returning_id(
+            conn,
             "INSERT INTO invites (email, organisation_id, role, created_at, used_at) VALUES (?, ?, ?, ?, NULL)",
             (email, organisation_id, role, _now_iso()),
         )
-        invite_id = cursor.lastrowid
     return get_invite_by_id(invite_id)
 
 

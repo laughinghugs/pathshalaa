@@ -9,7 +9,6 @@ subscription tiers, billing providers, and seat limits get added.
 from __future__ import annotations
 
 import logging
-import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -17,6 +16,7 @@ from fastapi import Depends, HTTPException, status
 
 from app.calibration import delete_calibration_samples_for_teacher
 from app.config import get_settings
+from app.db import IntegrityError
 from app.google_auth import GoogleUser
 from app.rbac import models
 from app.rbac.dependencies import get_current_app_user
@@ -98,7 +98,7 @@ def resolve_or_create_user(google_user: GoogleUser) -> User:
     create_kwargs, invite = _new_signup_assignment(google_user)
     try:
         user = models.create_user(email=google_user.email, google_sub=google_user.sub, **create_kwargs)
-    except sqlite3.IntegrityError:
+    except IntegrityError:
         winner = models.get_user_by_google_sub(google_user.sub) or models.get_user_by_email(google_user.email)
         if winner is None:
             raise

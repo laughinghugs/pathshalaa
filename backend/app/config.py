@@ -8,6 +8,11 @@ class Settings(BaseSettings):
 
     llm_provider: str = "anthropic"
 
+    # Postgres connection string (Render sets this for the deployed
+    # backend). Empty means "use the local SQLite files under backend/data/"
+    # — see app/db.py.
+    database_url: str = ""
+
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-opus-4-8"
 

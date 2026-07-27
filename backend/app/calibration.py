@@ -8,15 +8,19 @@ inject them as few-shot examples ahead of the new image at recognition time
 need for a heavier schema or ORM at MVP scale.
 """
 
-import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+
+from app.db import IS_POSTGRES, connect, insert_returning_id
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "calibration.db"
 
 ONBOARDING_SOURCE = "onboarding"
 CORRECTION_SOURCE = "correction"
+
+_PK = "id SERIAL PRIMARY KEY" if IS_POSTGRES else "id INTEGER PRIMARY KEY AUTOINCREMENT"
+_BLOB_TYPE = "BYTEA" if IS_POSTGRES else "BLOB"
 
 
 @dataclass
@@ -30,22 +34,19 @@ class CalibrationSample:
     created_at: str
 
 
-def _get_connection() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+def _get_connection():
+    return connect(DB_PATH)
 
 
 def init_db() -> None:
     with _get_connection() as conn:
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS calibration_samples (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                {_PK},
                 teacher_id TEXT NOT NULL,
                 label TEXT NOT NULL,
-                image_data BLOB NOT NULL,
+                image_data {_BLOB_TYPE} NOT NULL,
                 mime_type TEXT NOT NULL,
                 source TEXT NOT NULL DEFAULT 'onboarding',
                 created_at TEXT NOT NULL
@@ -63,14 +64,14 @@ def store_calibration_sample(
 ) -> int:
     """Stores a single (image, label) sample for a teacher and returns its id."""
     with _get_connection() as conn:
-        cursor = conn.execute(
+        return insert_returning_id(
+            conn,
             """
             INSERT INTO calibration_samples (teacher_id, label, image_data, mime_type, source, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
             (teacher_id, label, image_bytes, mime_type, source, datetime.now(timezone.utc).isoformat()),
         )
-        return cursor.lastrowid
 
 
 def store_correction(teacher_id: str, image_bytes: bytes, mime_type: str, corrected_label: str) -> int:
