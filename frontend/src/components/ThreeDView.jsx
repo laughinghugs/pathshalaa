@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Corners from './Corners'
 import { loadPlotly } from '../utils/plotly'
 import { renderGraphData } from '../utils/plotGraph'
-import { buildShapeSurface, SHAPE_LABELS } from '../utils/shape3d'
+import { buildShapeSurface, buildPlotlyTraces, SHAPE_LABELS } from '../utils/shape3d'
 
 // `payload` is either:
 //   { kind: 'graph', latex, data }   — a 3D surface from POST /api/graph
@@ -46,16 +46,10 @@ export default function ThreeDView({ t, onBack, payload }) {
           }
           Plotly.newPlot(
             plotRef.current,
-            [
-              {
-                x: surface.x,
-                y: surface.y,
-                z: surface.z,
-                type: 'surface',
-                showscale: false,
-                colorscale: DARK_PLOT_OPTIONS.colorscale,
-              },
-            ],
+            buildPlotlyTraces(surface, {
+              colorscale: DARK_PLOT_OPTIONS.colorscale,
+              labelColor: DARK_PLOT_OPTIONS.font.color,
+            }),
             {
               paper_bgcolor: DARK_PLOT_OPTIONS.paperBg,
               font: DARK_PLOT_OPTIONS.font,
@@ -92,7 +86,8 @@ export default function ThreeDView({ t, onBack, payload }) {
   const subtitle =
     payload?.kind === 'shape3d'
       ? Object.entries(payload.params || {})
-          .map(([k, v]) => `${k} = ${v}`)
+          .filter(([k, v]) => k !== 'unit' && typeof v === 'number')
+          .map(([k, v]) => `${k} = ${v}${payload.params.unit ? ` ${payload.params.unit}` : ''}`)
           .join(' · ')
       : payload?.kind === 'graph'
         ? `${payload.data.z_label}(${payload.data.x_label}, ${payload.data.y_label})`

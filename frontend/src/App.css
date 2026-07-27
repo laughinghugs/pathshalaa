@@ -587,6 +587,32 @@ button {
 .range-bracket-toggle:hover:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
 .range-bracket-toggle:disabled { opacity: 0.6; cursor: not-allowed; }
 
+.mensuration-fields { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.mensuration-fields select {
+  font-family: inherit;
+  font-size: 13.5px;
+  padding: 4px 7px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.mensuration-dim-field { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.mensuration-dim-field input {
+  width: 64px;
+  font-family: inherit;
+  font-size: 13.5px;
+  padding: 4px 7px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.mensuration-missing-hint { font-size: 12px; color: var(--color-neutral-600); margin-top: 4px; }
+.mensuration-plot { width: 100%; height: 260px; margin-top: 4px; margin-bottom: 8px; }
+.mensuration-quantity { margin-top: 14px; }
+.mensuration-quantity:first-of-type { margin-top: 10px; }
+
 .error { color: #a23b32; font-size: 0.85rem; }
 
 /* ── 3D view screen ───────────────────────────────────────────────────── */

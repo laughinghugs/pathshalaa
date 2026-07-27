@@ -24,6 +24,10 @@ _COMMAND_EXAMPLES: dict[str, str] = {
         '"range_min": "0", "range_max": "\\\\pi", '
         '"range_min_inclusive": true, "range_max_inclusive": false}'
     ),
+    "shape_mensuration": (
+        '{"type": "shape_mensuration", "shape": "cone", '
+        '"dimensions": {"radius": 3, "height": 5}, "unit": "cm"}'
+    ),
     "solution_steps": '{"type": "solution_steps", "steps": ["Step 1: ...", "Step 2: ..."]}',
     "translation": '{"type": "translation", "text": "...", "language": "hi"}',
 }

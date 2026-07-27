@@ -50,6 +50,33 @@ class Shape3DCommand(BaseModel):
     params: dict[str, float]
 
 
+class ShapeDimensions(BaseModel):
+    """All optional at the schema level — which ones are actually required
+    depends on `shape` (a cone needs radius+height, a cuboid needs
+    length+width+height, etc.). Whether they're all present is checked in
+    app/mensuration.py, not here, so a partially-labeled drawing still
+    produces a command the teacher can see and fill in rather than being
+    silently dropped by parse_ai_commands' schema-mismatch filter."""
+
+    radius: Optional[float] = None
+    height: Optional[float] = None
+    length: Optional[float] = None
+    width: Optional[float] = None
+    side: Optional[float] = None
+
+
+class ShapeMensurationCommand(BaseModel):
+    """A hand-drawn solid (cone/sphere/cylinder/cuboid) with dimensions
+    labeled nearby, e.g. a cone outline with "r=3, h=5" written next to it —
+    distinct from `shape3d`, which is a plain shape+params request with no
+    calculation attached."""
+
+    type: Literal["shape_mensuration"]
+    shape: Literal["cone", "sphere", "cylinder", "cuboid"]
+    dimensions: ShapeDimensions
+    unit: Optional[str] = None
+
+
 class SolveEquationCommand(BaseModel):
     """An explicit "solve this" instruction written on the canvas (the word
     "solve", "find x", etc.), as opposed to just an equation left for the
@@ -83,6 +110,7 @@ AICommand = Annotated[
         LatexCommand,
         GraphCommand,
         Shape3DCommand,
+        ShapeMensurationCommand,
         SolveEquationCommand,
         SolutionStepsCommand,
         TranslationCommand,

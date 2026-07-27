@@ -1,6 +1,8 @@
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel
+
+from app.commands import ShapeDimensions
 
 
 class GoogleLoginRequest(BaseModel):
@@ -163,3 +165,21 @@ class MeResponse(BaseModel):
     organisation_id: Optional[int]
     trial_expires_at: Optional[str]
     trial_days_remaining: Optional[int]
+
+
+class MensurationCalculateRequest(BaseModel):
+    shape: Literal["cone", "sphere", "cylinder", "cuboid"]
+    dimensions: ShapeDimensions
+    unit: Optional[str] = None
+
+
+class MensurationResultResponse(BaseModel):
+    type: Literal["mensuration_result"] = "mensuration_result"
+    shape: str
+    dimensions: dict[str, float]
+    unit: Optional[str] = None
+    surface_area_steps: list[str]
+    volume_steps: list[str]
+    final_surface_area: str
+    final_volume: str
+    formulas_used: list[str]

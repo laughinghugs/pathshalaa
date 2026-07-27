@@ -1,24 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
-import renderMathInElement from 'katex/contrib/auto-render'
-import 'katex/dist/katex.min.css'
+import { useEffect, useState } from 'react'
 import { solveEquation } from '../api/client'
 import Corners from './Corners'
-
-// Steps come back from the LLM with inline math wrapped in single $...$
-// (see build_solve_prompt in backend/app/solving.py) — auto-render walks the
-// rendered step text and replaces each delimited span with KaTeX, leaving
-// the surrounding prose untouched.
-function MathText({ text }) {
-  const ref = useRef(null)
-  useEffect(() => {
-    if (!ref.current) return
-    renderMathInElement(ref.current, {
-      delimiters: [{ left: '$', right: '$', display: false }],
-      throwOnError: false,
-    })
-  }, [text])
-  return <span ref={ref}>{text}</span>
-}
+import MathText from './MathText'
 
 export default function SolveView({ latex, autoSolve, t }) {
   const [loading, setLoading] = useState(false)

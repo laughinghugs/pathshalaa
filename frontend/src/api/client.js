@@ -106,6 +106,11 @@ export async function solveEquation(latex, range) {
   return data
 }
 
+export async function calculateMensuration(shape, dimensions, unit) {
+  const { data } = await client.post('/mensuration/calculate', { shape, dimensions, unit: unit || null })
+  return data
+}
+
 export async function recognizeEquation(blob) {
   const formData = new FormData()
   formData.append('image', blob, 'equation.png')

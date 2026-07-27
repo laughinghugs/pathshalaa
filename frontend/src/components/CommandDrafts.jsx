@@ -2,8 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import Corners from './Corners'
+import MathText from './MathText'
 import { loadPlotly } from '../utils/plotly'
-import { buildShapeSurface, SHAPE_LABELS } from '../utils/shape3d'
+import { buildShapeSurface, buildPlotlyTraces, SHAPE_LABELS } from '../utils/shape3d'
+import { calculateMensuration } from '../api/client'
+
+const MENSURATION_SHAPE_FIELDS = {
+  cone: ['radius', 'height'],
+  sphere: ['radius'],
+  cylinder: ['radius', 'height'],
+  cuboid: ['length', 'width', 'height'],
+}
 
 // The generic draft/confirm layer for ALL AI output (item 2 of the
 // recognition refactor): every command coming back from /api/recognize
@@ -23,6 +32,7 @@ const TYPE_LABELS = {
   latex: 'Recognized equation',
   graph: 'Graph',
   shape3d: '3D shape',
+  shape_mensuration: 'Solid dimensions',
   solution_steps: 'Solution steps',
   translation: 'Translation',
 }
@@ -168,6 +178,186 @@ function SolveEquationDraftCard({ command, accepted, onAccept, t }) {
   )
 }
 
+function RevealSteps({ title, steps, t }) {
+  const [revealedCount, setRevealedCount] = useState(1)
+  const allRevealed = revealedCount >= steps.length
+
+  return (
+    <div className="mensuration-quantity">
+      <div className="card-kicker">{title}</div>
+      <div className="solution-steps">
+        {steps.slice(0, revealedCount).map((step, i) => (
+          <div className="solution-step" key={i}>
+            <span className="solution-step-n">{i + 1}</span>
+            <span className="solution-step-text">
+              <MathText text={step} />
+            </span>
+          </div>
+        ))}
+      </div>
+      {!allRevealed && (
+        <button
+          type="button"
+          className="btn btn-secondary blueprint btn-block"
+          onClick={() => setRevealedCount((n) => Math.min(n + 1, steps.length))}
+        >
+          <Corners />
+          {t.revealNextStep}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function ShapeMensurationDraftCard({ command, accepted, onAccept, onView3d, t }) {
+  const [shape, setShape] = useState(command.shape)
+  const [dimensions, setDimensions] = useState(() => {
+    const initial = {}
+    for (const [key, value] of Object.entries(command.dimensions || {})) {
+      if (value != null) initial[key] = value
+    }
+    return initial
+  })
+  const [unit, setUnit] = useState(command.unit || '')
+  const [calculating, setCalculating] = useState(false)
+  const [error, setError] = useState('')
+  const [result, setResult] = useState(null)
+  const plotRef = useRef(null)
+
+  // A cube is usually hand-labeled with one "side" rather than separate
+  // length/width/height — keep that single field instead of demanding the
+  // teacher re-enter the same number three times.
+  const isCubeShorthand =
+    shape === 'cuboid' && dimensions.side != null && dimensions.length == null && dimensions.width == null && dimensions.height == null
+  const fields = shape === 'cuboid' ? (isCubeShorthand ? ['side'] : ['length', 'width', 'height']) : MENSURATION_SHAPE_FIELDS[shape]
+  const missing = fields.filter((f) => dimensions[f] == null || dimensions[f] === '')
+
+  useEffect(() => {
+    if (!result || !plotRef.current) return
+    let cancelled = false
+    loadPlotly().then((Plotly) => {
+      if (cancelled || !plotRef.current) return
+      const surface = buildShapeSurface(result.shape, { ...result.dimensions, unit: result.unit })
+      Plotly.newPlot(
+        plotRef.current,
+        buildPlotlyTraces(surface, { labelColor: '#2b2b2d' }),
+        { margin: { t: 10, r: 10, b: 10, l: 10 }, scene: { aspectmode: 'data' } },
+        { responsive: true, displayModeBar: false },
+      )
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [result])
+
+  function handleShapeChange(nextShape) {
+    setShape(nextShape)
+    setDimensions({})
+    setResult(null)
+  }
+
+  async function handleCalculate() {
+    setError('')
+    setCalculating(true)
+    try {
+      const numericDimensions = Object.fromEntries(
+        Object.entries(dimensions)
+          .filter(([, v]) => v !== '' && v != null)
+          .map(([k, v]) => [k, Number(v)]),
+      )
+      const data = await calculateMensuration(shape, numericDimensions, unit)
+      setResult(data)
+      onAccept?.()
+    } catch (err) {
+      const detail = err?.response?.data?.detail
+      setError(typeof detail === 'string' ? detail : t.mensurationError)
+    } finally {
+      setCalculating(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="card-kicker">{t.mensurationDraftLabel}</div>
+
+      {!result && (
+        <>
+          <div className="mensuration-fields">
+            <select value={shape} disabled={accepted} onChange={(e) => handleShapeChange(e.target.value)}>
+              {Object.keys(MENSURATION_SHAPE_FIELDS).map((s) => (
+                <option key={s} value={s}>
+                  {SHAPE_LABELS[s]}
+                </option>
+              ))}
+            </select>
+            {fields.map((field) => (
+              <label key={field} className="mensuration-dim-field">
+                {field}
+                <input
+                  type="number"
+                  step="any"
+                  disabled={accepted}
+                  value={dimensions[field] ?? ''}
+                  onChange={(e) => setDimensions((d) => ({ ...d, [field]: e.target.value }))}
+                />
+              </label>
+            ))}
+            <label className="mensuration-dim-field">
+              {t.mensurationUnitLabel}
+              <input
+                type="text"
+                placeholder="cm"
+                disabled={accepted}
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
+              />
+            </label>
+          </div>
+          {missing.length > 0 && (
+            <p className="mensuration-missing-hint">
+              {t.mensurationMissingHint}: {missing.join(', ')}
+            </p>
+          )}
+          {error && <p className="error">{error}</p>}
+          <button
+            type="button"
+            className="btn btn-primary blueprint btn-block"
+            onClick={handleCalculate}
+            disabled={calculating || missing.length > 0}
+          >
+            <Corners />
+            {calculating ? t.mensurationCalculating : t.mensurationCalculate}
+          </button>
+        </>
+      )}
+
+      {result && (
+        <>
+          <div ref={plotRef} className="graph-plot mensuration-plot" />
+          {onView3d && (
+            <button
+              type="button"
+              className="btn btn-secondary blueprint btn-block"
+              onClick={() =>
+                onView3d({
+                  kind: 'shape3d',
+                  shape: result.shape,
+                  params: { ...result.dimensions, unit: result.unit },
+                })
+              }
+            >
+              <Corners />
+              {t.view3d}
+            </button>
+          )}
+          <RevealSteps title={t.mensurationSurfaceArea} steps={result.surface_area_steps} t={t} />
+          <RevealSteps title={t.mensurationVolume} steps={result.volume_steps} t={t} />
+        </>
+      )}
+    </>
+  )
+}
+
 function SolutionStepsCard({ command, t }) {
   return (
     <>
@@ -198,7 +388,7 @@ function Shape3DCard({ command, t, onView3d }) {
       if (cancelled || !plotRef.current) return
       Plotly.newPlot(
         plotRef.current,
-        [{ x: surface.x, y: surface.y, z: surface.z, type: 'surface', showscale: false, colorscale: 'Blues' }],
+        buildPlotlyTraces(surface, { labelColor: '#2b2b2d' }),
         { margin: { t: 10, r: 10, b: 10, l: 10 }, scene: { aspectmode: 'data' } },
         { responsive: true, displayModeBar: false },
       )
@@ -263,6 +453,10 @@ export default function CommandDrafts({ commands, onLatexAccept, onSolveEquation
     onSolveEquationAccept?.(finalContent, range)
   }
 
+  function handleMensurationAccept(id) {
+    setDrafts((prev) => prev.map((d) => (d._id === id ? { ...d, _accepted: true } : d)))
+  }
+
   if (drafts.length === 0) {
     return <div className="ai-panel-empty">{t.recognizeHint}</div>
   }
@@ -286,6 +480,14 @@ export default function CommandDrafts({ commands, onLatexAccept, onSolveEquation
               onAccept={(content, range) => handleSolveEquationAccept(draft._id, content, range)}
               t={t}
             />
+          ) : draft.type === 'shape_mensuration' ? (
+            <ShapeMensurationDraftCard
+              command={draft}
+              accepted={draft._accepted}
+              onAccept={() => handleMensurationAccept(draft._id)}
+              onView3d={onView3d}
+              t={t}
+            />
           ) : draft.type === 'solution_steps' ? (
             <SolutionStepsCard command={draft} t={t} />
           ) : draft.type === 'shape3d' ? (
@@ -293,7 +495,7 @@ export default function CommandDrafts({ commands, onLatexAccept, onSolveEquation
           ) : (
             <FallbackDraftCard command={draft} />
           )}
-          {draft.type !== 'latex' && draft.type !== 'solve_equation' && (
+          {draft.type !== 'latex' && draft.type !== 'solve_equation' && draft.type !== 'shape_mensuration' && (
             <div className="command-draft-actions">
               {draft._accepted ? (
                 <span className="command-draft-status">{t.confirmedStatus}</span>

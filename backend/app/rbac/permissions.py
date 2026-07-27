@@ -10,7 +10,7 @@ PERMISSIONS: dict[str, list[str]] = {
     "owner": ["*"],
     "developer": ["view_logs", "manage_feature_flags", "view_system_health"],
     "admin": ["manage_org_users", "view_org_usage", "manage_org_subscription"],
-    "user": ["use_canvas", "use_recognize", "use_solve", "use_graph", "use_3d"],
+    "user": ["use_canvas", "use_recognize", "use_solve", "use_graph", "use_3d", "use_mensuration"],
 }
 
 

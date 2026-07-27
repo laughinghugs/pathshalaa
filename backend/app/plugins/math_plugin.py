@@ -16,7 +16,18 @@ PROMPT_TEMPLATE = (
     "the lower and upper bounds as LaTeX expressions in `range_min`/`range_max` (e.g. \"0\", "
     "\"\\\\pi\", not a decimal approximation), and set `range_min_inclusive`/`range_max_inclusive` "
     "to true for a square bracket ([ or ]) on that side and false for a round one (( or )). Omit "
-    "range_min/range_max entirely (leave them unset) if no range is written."
+    "range_min/range_max entirely (leave them unset) if no range is written.\n\n"
+    "If instead the drawing is a 3D solid outline (a cone, sphere, cylinder, or cuboid/box) with "
+    "dimensions labeled near it — e.g. \"r=3, h=5\", \"radius 3 height 5\", or numbers written next "
+    "to the sides of a box — return a `shape_mensuration` command: set `shape` to whichever of "
+    "cone/sphere/cylinder/cuboid the outline is, and fill in `dimensions` with only the numeric "
+    "values actually labeled (a cone/cylinder needs radius+height; a sphere needs only radius; a "
+    "cuboid needs length+width+height — use `side` only if a single side length is labeled for a "
+    "cube-like box and length/width/height aren't distinguishable). Do not guess a value that "
+    "isn't written down — leave that dimension unset rather than inventing a number. If a unit "
+    "(cm, m, etc.) is written next to the numbers, put it in `unit`; otherwise omit `unit`. This is "
+    "a distinct instruction from an equation — don't also return a `latex` command for the same "
+    "drawing."
 )
 
 MATH_PLUGIN = SubjectPlugin(
@@ -25,7 +36,7 @@ MATH_PLUGIN = SubjectPlugin(
     # `graph` / `shape3d` / `solution_steps` remain valid AICommand types
     # this plugin (or a future one) can adopt later without any change to
     # recognize_router.py.
-    command_types=["latex", "solve_equation"],
+    command_types=["latex", "solve_equation", "shape_mensuration"],
     prompt_template=PROMPT_TEMPLATE,
 )
 

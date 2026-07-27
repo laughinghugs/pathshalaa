@@ -22,6 +22,13 @@ const VALIDATORS = {
     typeof cmd.content === 'string' &&
     (cmd.range_min === undefined || cmd.range_min === null || typeof cmd.range_min === 'string') &&
     (cmd.range_max === undefined || cmd.range_max === null || typeof cmd.range_max === 'string'),
+  shape_mensuration: (cmd) =>
+    ['cone', 'sphere', 'cylinder', 'cuboid'].includes(cmd.shape) &&
+    isPlainObject(cmd.dimensions) &&
+    // Missing dimensions are expected here (the teacher fills them in on
+    // the draft card) — only reject if a *present* one isn't a number.
+    Object.values(cmd.dimensions).every((v) => v === null || v === undefined || typeof v === 'number') &&
+    (cmd.unit === undefined || cmd.unit === null || typeof cmd.unit === 'string'),
   solution_steps: (cmd) => Array.isArray(cmd.steps) && cmd.steps.every((s) => typeof s === 'string'),
   translation: (cmd) => typeof cmd.text === 'string' && typeof cmd.language === 'string',
 }

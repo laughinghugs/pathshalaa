@@ -10,6 +10,7 @@ from app.routers import (
     auth_router,
     calibration_router,
     graph_router,
+    mensuration_router,
     recognize_router,
     solve_router,
 )
@@ -31,6 +32,7 @@ app.include_router(calibration_router.router)
 app.include_router(graph_router.router)
 app.include_router(solve_router.router)
 app.include_router(admin_router.router)
+app.include_router(mensuration_router.router)
 
 
 @app.on_event("startup")
